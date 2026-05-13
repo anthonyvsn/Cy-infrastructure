@@ -1,0 +1,248 @@
+@startuml diagramme_classes_uml
+' =============================================================================
+' Diagramme de classes UML metier -- Projet GLPI CY Tech multi-sites
+' Auteur : equipe GLPI CY Tech
+' Date   : 2026-05-13
+' =============================================================================
+
+skinparam class {
+  BackgroundColor #FDFDFD
+  BorderColor     #2C3E50
+  ArrowColor      #34495E
+  FontName        "Helvetica"
+}
+skinparam package {
+  BackgroundColor #ECF0F1
+  BorderColor     #7F8C8D
+}
+skinparam shadowing false
+hide circle
+hide empty members
+
+title Modele metier -- CY Tech parc multi-sites
+
+package "Referentiel" #FFF8DC {
+  class Site {
+    +id : NUMBER
+    nom : VARCHAR2
+    ville : VARCHAR2
+    code_postal : VARCHAR2
+  }
+  class Entite {
+    +id : NUMBER
+    nom : VARCHAR2
+    niveau : NUMBER
+    nom_complet : VARCHAR2
+    est_recursif : BOOLEAN
+  }
+  class Localisation {
+    +id : NUMBER
+    nom : VARCHAR2
+    batiment : VARCHAR2
+    salle : VARCHAR2
+    etage : VARCHAR2
+  }
+  class Fabricant {
+    +id : NUMBER
+    nom : VARCHAR2 <<unique>>
+  }
+  class Etat {
+    +id : NUMBER
+    nom : VARCHAR2 <<unique>>
+    etat : VARCHAR2
+  }
+  class TypeOrdinateur {
+    +id : NUMBER
+    machine_type : VARCHAR2
+  }
+  class ModeleOrdinateur {
+    +id : NUMBER
+    nom : VARCHAR2
+    ref_produit : VARCHAR2
+  }
+}
+
+package "Utilisateurs" #E8F6F3 {
+  class Profil {
+    +id : NUMBER
+    nom : VARCHAR2 <<unique>>
+    interface : ENUM
+  }
+  class Utilisateur {
+    +id : NUMBER
+    login : VARCHAR2 <<unique>>
+    mot_de_passe : VARCHAR2
+    nom : VARCHAR2
+    prenom : VARCHAR2
+    email : VARCHAR2
+    langue : VARCHAR2
+    est_actif : BOOLEAN
+    est_supprime : BOOLEAN
+    date_debut : DATE
+    date_fin : DATE
+  }
+  class ProfilUtilisateur {
+    +id : NUMBER
+    est_recursif : BOOLEAN
+    est_dynamique : BOOLEAN
+  }
+  class Groupe {
+    +id : NUMBER
+    nom : VARCHAR2
+    est_recursif : BOOLEAN
+    commentaire : VARCHAR2
+  }
+}
+
+package "Materiel" #FDEDEC {
+  class Ordinateur {
+    +id : NUMBER
+    nom : VARCHAR2
+    numero_serie : VARCHAR2
+    numero_inventaire : VARCHAR2
+    est_supprime : BOOLEAN
+    est_template : BOOLEAN
+    date_achat : DATE
+    commentaire : VARCHAR2
+  }
+  class Peripherique {
+    +id : NUMBER
+    nom : VARCHAR2
+    numero_serie : VARCHAR2
+    type_peripherique : ENUM
+    est_supprime : BOOLEAN
+  }
+  class Telephone {
+    +id : NUMBER
+    nom : VARCHAR2
+    numero_tel : VARCHAR2
+    type_telephone : ENUM
+    service : VARCHAR2
+    est_supprime : BOOLEAN
+  }
+  class Logiciel {
+    +id : NUMBER
+    nom : VARCHAR2
+    editeur : VARCHAR2
+    est_supprime : BOOLEAN
+  }
+  class VersionLogiciel {
+    +id : NUMBER
+    nom : VARCHAR2
+  }
+  class InstallationLogiciel {
+    +id : NUMBER
+    date_installation : DATE
+  }
+}
+
+package "Reseau" #EAF2F8 {
+  class TypeEquipementReseau {
+    +id : NUMBER
+    nom : VARCHAR2 <<unique>>
+  }
+  class EquipementReseau {
+    +id : NUMBER
+    nom : VARCHAR2
+    numero_serie : VARCHAR2
+    nb_ports : NUMBER
+    est_supprime : BOOLEAN
+  }
+  class PortReseau {
+    +id : NUMBER
+    nom : VARCHAR2
+    adresse_mac : VARCHAR2
+    type_port : ENUM
+    vitesse : NUMBER
+    est_actif : BOOLEAN
+  }
+}
+
+package "Audit" #F5EEF8 {
+  class Historique {
+    +id : NUMBER
+    type_objet : VARCHAR2
+    objet_id : NUMBER
+    champ_modifie : VARCHAR2
+    ancienne_valeur : VARCHAR2
+    nouvelle_valeur : VARCHAR2
+    type_action : ENUM
+    date_action : DATE
+  }
+}
+
+' ----- Hierarchies (auto-references) ---------------------------------------
+Entite        "1" -- "0..*" Entite       : parent <
+Localisation  "1" -- "0..*" Localisation : parent <
+Groupe        "1" -- "0..*" Groupe       : parent <
+
+' ----- Referentiel <-> autres -----------------------------------------------
+Site         "1" -- "1..*" Entite
+Entite       "1" -- "0..*" Localisation
+Fabricant    "1" -- "0..*" ModeleOrdinateur
+
+' ----- Utilisateurs ---------------------------------------------------------
+Utilisateur  "1" -- "0..*" ProfilUtilisateur
+Profil       "1" -- "0..*" ProfilUtilisateur
+Entite       "1" -- "0..*" ProfilUtilisateur
+Utilisateur  "*" -- "1" Site
+Utilisateur  "*" -- "1" Entite
+Utilisateur  "*" -- "0..1" Localisation
+Utilisateur  "*" -- "0..1" Profil
+Groupe       "*" -- "1" Entite
+
+' ----- Materiel : associations principales ----------------------------------
+Ordinateur     "*" -- "1" Site
+Ordinateur     "*" -- "1" Entite
+Ordinateur     "*" -- "0..1" Localisation
+Ordinateur     "*" -- "0..1" Utilisateur
+Ordinateur     "*" -- "0..1" Fabricant
+Ordinateur     "*" -- "0..1" Etat
+Ordinateur     "*" -- "0..1" TypeOrdinateur
+Ordinateur     "*" -- "0..1" ModeleOrdinateur
+
+Peripherique   "*" -- "1" Site
+Peripherique   "*" -- "1" Entite
+Peripherique   "*" -- "0..1" Utilisateur
+Peripherique   "*" -- "0..1" Fabricant
+
+Telephone      "*" -- "1" Site
+Telephone      "*" -- "1" Entite
+
+Logiciel       "1" -- "0..*" VersionLogiciel
+VersionLogiciel "1" -- "0..*" InstallationLogiciel
+Ordinateur     "1" -- "0..*" InstallationLogiciel
+
+' ----- Reseau --------------------------------------------------------------
+EquipementReseau "*" -- "1" Site
+EquipementReseau "*" -- "0..1" TypeEquipementReseau
+EquipementReseau "1" -- "0..*" PortReseau
+
+' ----- Audit (polymorphe) --------------------------------------------------
+Historique ..> Ordinateur        : type_objet = "ordinateurs"
+Historique ..> Utilisateur       : type_objet = "utilisateurs"
+Historique ..> EquipementReseau  : type_objet = "equipements_reseau"
+
+' ----- Notes pedagogiques --------------------------------------------------
+note top of Entite
+  Hierarchie recursive
+  CY Tech > Cergy > Informatique
+  niveau = profondeur dans l'arbre
+  nom_complet = chemin concatene
+end note
+
+note bottom of Historique
+  Polymorphisme par chaine :
+  (type_objet, objet_id) pointe vers
+  n'importe quelle table sensible.
+  Choix GLPI : evite N tables d'audit.
+end note
+
+note right of Site
+  2 instances :
+  - Cergy (id=1)  -> XE_CERGY
+  - Pau   (id=2)  -> XE_PAU
+  Base repartie via db link.
+end note
+
+@enduml
