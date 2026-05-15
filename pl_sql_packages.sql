@@ -817,7 +817,7 @@ CREATE OR REPLACE PACKAGE pkg_maintenance AS
   -- Recalcule nom_complet pour toutes les hierarchy_level (apres reorganisation).
   -- Curseur explicite trie par niveau croissant pour que le parent soit
   -- toujours traite avant le fils.
-  PROCEDURE recalculer_nom_complet_entites;
+  PROCEDURE recalculer_nom_complet_hierarchy_level;
 
   -- Transfert d'un ordinateur entre sites (site_id, entite_id, localisation).
   -- Demonstration du %ROWTYPE.
@@ -903,16 +903,16 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
 
 
   -- ===================== RECALCUL NOMS COMPLETS =====================
-  PROCEDURE recalculer_nom_complet_entites IS
+  PROCEDURE recalculer_nom_complet_hierarchy_level IS
     -- Curseur trie par niveau croissant : on traite parents AVANT enfants.
-    CURSOR c_entites IS
+    CURSOR c_hierarchy_level IS
       SELECT id, nom, entite_parent_id, niveau
         FROM hierarchy_level
        ORDER BY niveau ASC, id ASC;
     v_nb     NUMBER := 0;
     v_chemin VARCHAR2(500);
   BEGIN
-    FOR e IN c_entites LOOP
+    FOR e IN c_hierarchy_level LOOP
       IF e.entite_parent_id IS NULL THEN
         v_chemin := e.nom;
       ELSE
@@ -925,7 +925,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
     END LOOP;
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('nom_complet recalcule pour ' || v_nb || ' hierarchy_level.');
-  END recalculer_nom_complet_entites;
+  END recalculer_nom_complet_hierarchy_level;
 
 
   -- ===================== TRANSFERT MATERIEL =====================
@@ -1101,7 +1101,7 @@ EXEC pkg_reseau.rapport_reseau_site(1);
 EXEC pkg_maintenance.audit_erreur('ordinateurs', 42, 'Test audit autonome');
 EXEC pkg_maintenance.purger_corbeille(180);          -- purge > 180 jours
 EXEC pkg_maintenance.refresh_mv_stats;
-EXEC pkg_maintenance.recalculer_nom_complet_entites;
+EXEC pkg_maintenance.recalculer_nom_complet_hierarchy_level;
 EXEC pkg_maintenance.transferer_materiel(1, 2, 35, 'Demenagement');
 EXEC pkg_maintenance.archiver_utilisateur(10);
 
