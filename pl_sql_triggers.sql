@@ -1,51 +1,21 @@
--- =============================================================================
--- TRIGGERS PL/SQL -- Projet GLPI CY Tech multi-sites
--- =============================================================================
--- Fichier consolide regroupant TOUS les triggers du projet.
---
--- ORDRE D'EXECUTION RECOMMANDE :
---   1) bdd_Cy_infrastructure.sql
---   2) corrections_sql.sql
---   3) Section 1 de CE fichier (triggers d'auto-incrementation des PK)
---      => indispensables AVANT le jeu de test pour que les INSERTs sans
---         id soient acceptes
---   4) jeu_de_test.sql (peuplement)
---   5) Sections 2-6 de CE fichier (audit, validation, INSTEAD OF...)
---      => apres le peuplement pour ne pas polluer historique
---   6) pl_sql_packages.sql
---
--- Astuce : pour appliquer tout le fichier d'un coup malgre l'audit qui pollue
---   le peuplement, faire un TRUNCATE TABLE historique apres le jeu de test.
---
--- Contenu :
---   Section 1 : Triggers d'auto-incrementation des PK (10 triggers)
---   Section 2 : Triggers de mise a jour de date_modification (12 triggers)
---   Section 3 : Triggers d'audit (8 triggers) avec procedure factorisee log_change
---   Section 4 : Triggers de validation site/hierarchy_level (5 triggers)
---   Section 5 : Triggers de validation metier (MAC, dates, suppressions, unicite)
---   Section 6 : Trigger INSTEAD OF sur vue (bonus pedagogique)
---
--- Concepts du cours couverts :
---   - Triggers BEFORE/AFTER, ROW-LEVEL, multi-evenement
---   - INSTEAD OF sur vues
---   - Procedure factorisee log_change pour eviter la duplication
---   - Gestion d'erreurs (RAISE_APPLICATION_ERROR, codes < -20000)
---   - %ROWTYPE, %TYPE, REGEXP_LIKE
--- =============================================================================
+/*
+  Ce fichier contient tous les triggers du projet.
+  Contient :
+    - Triggers d'auto-incrementation des PK (10 triggers)
+    - Triggers de mise a jour de date_modification (12 triggers)
+    - Triggers d'audit (8 triggers) avec procedure factorisee log_change
+    - Triggers de validation site/hierarchy_level (5 triggers)
+    - Triggers de validation metier (MAC, dates, suppressions, unicite)
+    - Trigger INSTEAD OF sur vue (bonus pedagogique)
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD HH24:MI:SS';
 
 
-
-
 -- =============================================================================
--- SECTION 1 : TRIGGERS D'AUTO-INCREMENTATION DES PK
+-- TRIGGERS D'AUTO-INCREMENTATION
 -- =============================================================================
--- Pourquoi : meme si le jeu de test passe explicitement seq.NEXTVAL,
--- une application cliente peut ne pas le faire. Le trigger garantit que
--- toute INSERT sans id recoit automatiquement une cle unique.
--- Test IS NULL : on n'ecrase pas une valeur explicitement fournie.
 
 CREATE OR REPLACE TRIGGER trg_pk_sites
 BEFORE INSERT ON sites
@@ -151,14 +121,8 @@ END;
 
 
 -- =============================================================================
--- SECTION 2 : TRIGGERS DE MAJ AUTOMATIQUE DE date_modification
+-- TRIGGERS DE MAJ AUTOMATIQUE DE date_modification
 -- =============================================================================
--- Pourquoi : on veut tracer la derniere modification de chaque ligne sans
--- dependre du code client (qui peut oublier de mettre a jour ce champ).
--- BEFORE UPDATE FOR EACH ROW : on modifie :NEW avant que la ligne ne soit
--- ecrite, sans declencher un second UPDATE recursif.
-
--- Triggers propres aux dates (update)
 CREATE OR REPLACE TRIGGER trg_majdate_sites
 BEFORE UPDATE ON sites
 FOR EACH ROW
@@ -253,7 +217,7 @@ END;
 
 
 -- =============================================================================
--- SECTION 3 : TRIGGERS D'AUDIT VERS LA TABLE historique
+-- TRIGGERS D'AUDIT VERS LA TABLE historique
 -- =============================================================================
 -- Strategie :
 --   - 1 trigger AFTER INSERT/UPDATE/DELETE par table sensible
@@ -512,7 +476,7 @@ END;
 
 
 -- =============================================================================
--- SECTION 4 : TRIGGERS DE VALIDATION SITE / ENTITE
+-- TRIGGERS DE VALIDATION SITE / ENTITE
 -- =============================================================================
 -- Un materiel dans une hierarchy_level doit etre du meme site que cette hierarchy_level.
 -- On se prémunit des saisies incoherentes.
@@ -608,7 +572,7 @@ END;
 
 
 -- =============================================================================
--- SECTION 5 : TRIGGERS DE VALIDATION METIER
+-- TRIGGERS DE VALIDATION METIER
 -- =============================================================================
 
 /* Validation du format MAC sur ports_reseau
@@ -718,7 +682,7 @@ END;
 
 
 -- =============================================================================
--- SECTION 6 : TRIGGER INSTEAD OF SUR VUE GLOBALE (bonus)
+-- TRIGGER INSTEAD OF SUR VUE GLOBALE (bonus)
 -- =============================================================================
 -- Permet d'inserer dans la vue vue_parc_global qui est un UNION ALL : sans ce
 -- trigger, Oracle refuse l'INSERT car ne sait pas quelle table cibler.
@@ -743,19 +707,3 @@ BEGIN
       'Site inconnu (site_id=' || :NEW.site_id || '). Valeurs attendues : 1 (Cergy) ou 2 (Pau).');
   END IF;
 END;
-
-
-
-
-
--- =============================================================================
--- FIN DU FICHIER TRIGGERS
--- Recapitulatif :
---  10 triggers PK auto-increment
---  12 triggers date_modification
---   8 triggers d'audit (avec procedure factorisee log_change)
---   5 triggers coherence sitehierarchy_level
---   6 triggers validation metier (MAC, dates, suppressions, unicite)
---   1 trigger INSTEAD OF sur vue (bonus)
--- Total : 42 triggers + 1 procedure utilitaire
--- =============================================================================
