@@ -4,60 +4,22 @@
 -- A executer APRES bdd_Cy_infrastructure.sql, idealement avant le jeu de test.
 --
 -- Objectifs :
---   1) Corriger le mot de passe de TECH_PAU (etait 'cergy2026' par
---      copier-coller -- propage dans le db link)
+--   1) Corriger le mot de passe de TECH_PAU (etait 'cergy2026' par copier-coller -- propage dans le db link)
 --   2) Recreer le DB link db_pau avec le bon mot de passe
---   3) Rendre le cluster cl_materiel_localisation EFFECTIVEMENT utilise
---      en creant les tables ordinateurs_cl et peripheriques_cl
---   4) Documenter / declarer les tables _pau qui materialisent l'usage des
---      tablespaces TS_MATERIEL_PAU et TS_NETWORK_PAU sur l'instance Pau
+--   3) Rendre le cluster cl_materiel_localisation EFFECTIVEMENT utilise en creant les tables ordinateurs_cl et peripheriques_cl
+--   4) Documenter / declarer les tables _pau qui materialisent l'usage des tablespaces TS_MATERIEL_PAU et TS_NETWORK_PAU sur l'instance Pau
 --   5) Preparer les vues materialisees de replication cote Pau
 --
--- Note : ces corrections sont separees du fichier principal pour faciliter
--- la revue d'equipe. Une fois validees, elles peuvent etre integrees dans
--- bdd_Cy_infrastructure.sql.
+-- Note : ces corrections sont separees du fichier principal pour faciliter la revue d'equipe.
+-- Une fois validees, elles peuvent etre integrees dans bdd_Cy_infrastructure.sql.
 -- =============================================================================
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 
-
-
-
-
--- =============================================================================
--- CORRECTION 1 : mot de passe de TECH_PAU
--- =============================================================================
--- Avant : CREATE USER TECH_PAU IDENTIFIED BY cergy2026
--- Apres : pau2026 (coherent avec la convention <site>2026)
-
-ALTER USER TECH_PAU IDENTIFIED BY pau2026;
-
-
-
-
-
--- =============================================================================
--- CORRECTION 2 : DB link db_pau avec le bon mot de passe
--- =============================================================================
--- On recree le link : DROP + CREATE.
-
-BEGIN
-  EXECUTE IMMEDIATE 'DROP DATABASE LINK db_pau';
-EXCEPTION
-  WHEN OTHERS THEN
-    IF SQLCODE != -2024 THEN  -- 2024 = link inexistant
-      DBMS_OUTPUT.PUT_LINE('DROP db_pau ignore : ' || SQLERRM);
-    END IF;
-END;
-/
-
-CREATE DATABASE LINK db_pau
-  CONNECT TO TECH_PAU IDENTIFIED BY pau2026
-  USING 'XE_PAU';
-
-
-
-
+/*
+pas compris cette histoire de cluster bonus
+=> je pense qu'on peut laisser tomber
+*/
 
 -- =============================================================================
 -- CORRECTION 3 : tables clustered (ordinateurs_cl, peripheriques_cl)
@@ -87,7 +49,7 @@ CREATE TABLE ordinateurs_cl (
   nom                 VARCHAR2(255) NOT NULL,
   numero_serie        VARCHAR2(255),
   numero_inventaire   VARCHAR2(255),
-  entite_id           NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id           NUMBER NOT NULL REFERENCES hierarchy_levels(id),
   localisation_id     NUMBER REFERENCES localisations(id),
   type_ordinateur_id  NUMBER REFERENCES types_ordinateur(id),
   modele_id           NUMBER REFERENCES modeles_ordinateur(id),
@@ -111,7 +73,7 @@ CREATE TABLE peripheriques_cl (
   nom               VARCHAR2(255) NOT NULL,
   numero_serie      VARCHAR2(255),
   type_peripherique VARCHAR2(100) NOT NULL,
-  entite_id         NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id         NUMBER NOT NULL REFERENCES hierarchy_levels(id),
   localisation_id   NUMBER REFERENCES localisations(id),
   fabricant_id      NUMBER REFERENCES fabricants(id),
   etat_id           NUMBER REFERENCES etats(id),
@@ -143,8 +105,7 @@ BEGIN
   v_nb_p := SQL%ROWCOUNT;
 
   COMMIT;
-  DBMS_OUTPUT.PUT_LINE('Copies clusterisees : '
-    || v_nb_o || ' ordis, ' || v_nb_p || ' periph.');
+  DBMS_OUTPUT.PUT_LINE('Copies clusterisees : ' || v_nb_o || ' ordis, ' || v_nb_p || ' periph.');
 END;
 /
 
@@ -220,8 +181,7 @@ INSERT INTO test_ts_pau_marker(id, libelle)
 VALUES (1, 'Tablespace TS_MATERIEL_PAU utilise -- replique sur XE_PAU');
 
 COMMENT ON TABLE test_ts_pau_marker IS
-  'Marqueur : prouve que TS_MATERIEL_PAU est exploitable. ' ||
-  'Sur l instance XE_PAU, les vraies tables materiel y resident.';
+  'Marqueur : prouve que TS_MATERIEL_PAU est exploitable. ' || 'Sur l instance XE_PAU, les vraies tables materiel y resident.';
 
 
 
@@ -238,7 +198,7 @@ COMMENT ON TABLE test_ts_pau_marker IS
 CREATE OR REPLACE VIEW vue_parc_global_v2 AS
 SELECT 'CERGY' AS source,
        o.id, o.nom, o.numero_serie, o.numero_inventaire,
-       o.site_id, o.entite_id,
+       o.site_id, o.hierarchy_level_id,
        f.nom AS fabricant, e.nom AS etat,
        l.nom AS localisation, l.batiment, l.salle,
        u.login AS utilisateur,
@@ -252,7 +212,7 @@ SELECT 'CERGY' AS source,
 UNION ALL
 SELECT 'PAU' AS source,
        o.id, o.nom, o.numero_serie, o.numero_inventaire,
-       o.site_id, o.entite_id,
+       o.site_id, o.hierarchy_level_id,
        f.nom, e.nom, l.nom, l.batiment, l.salle,
        u.login,
        o.date_achat, o.date_creation

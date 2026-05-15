@@ -1,75 +1,92 @@
+/*
+   Ce fichier est modifié et simplifié, il peut contenir d'éventuelles erreurs restantes.
+   Prends en compte les commentaires que j'ai pu rajouter dans ton analyse / ta correction de code.
+
+   Fais un CREATE OR REPLACE la ou c possible.
+   J'ai l'impression que seules le stables pour Cergy sont faites, fais celles pour Pau aussi.
+
+   ce qui est fait :
+    - remplacer table hierarchy_levels par hierarchy_level (est ce bien ?)
+    - table profils supprmmés (ne comprend pas qa quoi ca sert + doublon de clés etrangères utilisées avec utilisateurs)
+    - table profils_utilisateurs supprimés car utiliser juste pour : Association profils <-> utilisateurs <-> entités(hierarchy_level)
+
+  C quoi la table groupes ?
+  ajoute les éléments de correction.sql si nécessaire, lke but est que correction.sql n'existe plus.
+*/
+
+ALTER SESSION SET "_ORACLE_SCRIPT"=true;
 
 -- TABLESPACES
 
-CREATE TABLESPACE TS_MATERIEL_CERGY
+CREATE OR REPLACE TABLESPACE TS_MATERIEL_CERGY
   DATAFILE 'ts_materiel_cergy.dbf' SIZE 100M
   AUTOEXTEND ON NEXT 50M MAXSIZE 500M;
 
-CREATE TABLESPACE TS_MATERIEL_PAU
+CREATE OR REPLACE TABLESPACE TS_MATERIEL_PAU
   DATAFILE 'ts_materiel_pau.dbf' SIZE 100M
   AUTOEXTEND ON NEXT 50M MAXSIZE 500M;
 
-CREATE TABLESPACE TS_USERS
+CREATE OR REPLACE TABLESPACE TS_USERS
   DATAFILE 'ts_users.dbf' SIZE 50M
   AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
-CREATE TABLESPACE TS_NETWORK_CERGY
+CREATE OR REPLACE TABLESPACE TS_NETWORK_CERGY
   DATAFILE 'ts_network_cergy.dbf' SIZE 50M
   AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
-CREATE TABLESPACE TS_NETWORK_PAU
+CREATE OR REPLACE TABLESPACE TS_NETWORK_PAU
   DATAFILE 'ts_network_pau.dbf' SIZE 50M
   AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
-CREATE TABLESPACE TS_INDEX
+CREATE OR REPLACE TABLESPACE TS_INDEX
   DATAFILE 'ts_index.dbf' SIZE 50M
   AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
-CREATE TEMPORARY TABLESPACE TS_TEMP
+CREATE OR REPLACE TEMPORARY TABLESPACE TS_TEMP
   TEMPFILE 'ts_temp.dbf' SIZE 50M
   AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
 -- UTILISATEURS ET RÔLES ORACLE
 
 -- Rôles
-CREATE ROLE R_ADMIN; -- Role d'admin général ( des les deux sites )
-CREATE ROLE R_TECH_CERGY; -- Role de technicien sur le site de Cergy
-CREATE ROLE R_TECH_PAU; -- Role de technicien sur le site de Pau
-CREATE ROLE R_CONSULTATION; -- Role READONLY sur les deux sites
+CREATE OR REPLACE ROLE R_ADMIN;         -- Role d'admin général ( des les deux sites )
+CREATE OR REPLACE ROLE R_TECH_CERGY;    -- Role de technicien sur le site de Cergy
+CREATE OR REPLACE ROLE R_TECH_PAU;      -- Role de technicien sur le site de Pau
+CREATE OR REPLACE ROLE R_CONSULTATION;  -- Role READONLY sur les deux sites
 
 -- Privilèges de R_ADMIN
 GRANT CONNECT, RESOURCE TO R_ADMIN;
-GRANT CREATE TABLE, CREATE VIEW, CREATE PROCEDURE, CREATE TRIGGER TO R_ADMIN;
-GRANT CREATE SEQUENCE, CREATE SYNONYM, CREATE DATABASE LINK TO R_ADMIN;
-GRANT CREATE CLUSTER, CREATE MATERIALIZED VIEW TO R_ADMIN;
+GRANT CREATE OR REPLACE TABLE, CREATE OR REPLACE VIEW, CREATE OR REPLACE PROCEDURE, CREATE OR REPLACE TRIGGER TO R_ADMIN;
+GRANT CREATE OR REPLACE SEQUENCE, CREATE OR REPLACE SYNONYM, CREATE DATABASE LINK TO R_ADMIN;
+GRANT CREATE OR REPLACE CLUSTER, CREATE MATERIALIZED VIEW TO R_ADMIN;
 GRANT UNLIMITED TABLESPACE TO R_ADMIN;
 
 -- Privilèges de R_TECH_CERGY
 GRANT CONNECT, RESOURCE TO R_TECH_CERGY;
-GRANT CREATE SESSION TO R_TECH_CERGY;
+GRANT CREATE OR REPLACE SESSION TO R_TECH_CERGY;
 
 -- Privilèges de R_TECH_PAU
 GRANT CONNECT, RESOURCE TO R_TECH_PAU;
-GRANT CREATE SESSION TO R_TECH_PAU;
+GRANT CREATE OR REPLACE SESSION TO R_TECH_PAU;
 
 -- Privilèges de R_CONSULTATION
 GRANT CONNECT TO R_CONSULTATION;
-GRANT CREATE SESSION TO R_CONSULTATION;
+GRANT CREATE OR REPLACE SESSION TO R_CONSULTATION;
 
 -- Utilisateurs 
-CREATE USER ADMIN_CYTECH IDENTIFIED BY cytech2026
+CREATE OR REPLACE USER ADMIN_CYTECH IDENTIFIED BY cytech2026
   DEFAULT TABLESPACE TS_USERS
   TEMPORARY TABLESPACE TS_TEMP;
 
-CREATE USER TECH_CERGY IDENTIFIED BY cergy2026
+CREATE OR REPLACE USER TECH_CERGY IDENTIFIED BY cergy2026
   DEFAULT TABLESPACE TS_MATERIEL_CERGY
   TEMPORARY TABLESPACE TS_TEMP;
 
-CREATE USER TECH_PAU IDENTIFIED BY cergy2026
+CREATE OR REPLACE USER TECH_PAU IDENTIFIED BY pau2026
   DEFAULT TABLESPACE TS_MATERIEL_PAU
   TEMPORARY TABLESPACE TS_TEMP;
 
-CREATE USER USER_RO IDENTIFIED BY RO2026
+CREATE OR REPLACE USER USER_RO IDENTIFIED BY RO2026
   DEFAULT TABLESPACE TS_USERS
   TEMPORARY TABLESPACE TS_TEMP;
 
@@ -82,34 +99,33 @@ GRANT R_CONSULTATION TO USER_RO;
 
 -- SÉQUENCES
 
-CREATE SEQUENCE seq_sites START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_entites START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_localisations START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_fabricants START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_etats START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_types_ordinateur START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_modeles_ordinateur START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_ordinateurs START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_peripheriques START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_telephones START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_logiciels START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_versions_logiciel START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_install_logiciels START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_utilisateurs START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_profils START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_profils_utilisateurs START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_groupes START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_equip_reseau START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_types_equip_reseau START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_ports_reseau START WITH 1 INCREMENT BY 1;
-CREATE SEQUENCE seq_historique START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_sites START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_hierarchy_level START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_localisations START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_fabricants START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_etats START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_types_ordinateur START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_modeles_ordinateur START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_ordinateurs START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_peripheriques START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_telephones START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_logiciels START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_versions_logiciel START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_install_logiciels START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_utilisateurs START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_profils_utilisateurs START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_groupes START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_equip_reseau START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_types_equip_reseau START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_ports_reseau START WITH 1 INCREMENT BY 1;
+CREATE OR REPLACE SEQUENCE seq_historique START WITH 1 INCREMENT BY 1;
 
 
 
 -- Tables partagées entre Cergy et Pau
 
 -- Sites CY Tech
-CREATE TABLE sites (
+CREATE OR REPLACE TABLE sites (
   id          NUMBER PRIMARY KEY,
   nom         VARCHAR2(100) NOT NULL,
   adresse     VARCHAR2(255),
@@ -121,10 +137,10 @@ CREATE TABLE sites (
 ) TABLESPACE TS_USERS;
 
 -- Entités (structure hiérarchique : CY Tech > Cergy / Pau > Eleve...)
-CREATE TABLE entites (
+CREATE OR REPLACE TABLE hierarchy_level (
   id               NUMBER PRIMARY KEY,
   nom              VARCHAR2(255) NOT NULL,
-  entite_parent_id NUMBER REFERENCES entites(id),
+  hierarchy_level_parent_id NUMBER REFERENCES hierarchy_level(id),
   site_id          NUMBER NOT NULL REFERENCES sites(id),
   niveau           NUMBER DEFAULT 0,
   nom_complet      VARCHAR2(500),
@@ -134,11 +150,11 @@ CREATE TABLE entites (
 ) TABLESPACE TS_USERS;
 
 -- Localisations physiques (Salle 201, Personelle)
-CREATE TABLE localisations (
+CREATE OR REPLACE TABLE localisations (
   id                     NUMBER PRIMARY KEY,
   nom                    VARCHAR2(255) NOT NULL,
   nom_complet            VARCHAR2(500),
-  entite_id              NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id              NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_parent_id NUMBER REFERENCES localisations(id),
   batiment               VARCHAR2(50),
   salle                  VARCHAR2(20),
@@ -148,26 +164,26 @@ CREATE TABLE localisations (
 ) TABLESPACE TS_USERS;
 
 -- Fabricants
-CREATE TABLE fabricants (
+CREATE OR REPLACE TABLE fabricants (
   id          NUMBER PRIMARY KEY,
   nom         VARCHAR2(255) NOT NULL UNIQUE
 ) TABLESPACE TS_USERS;
 
 -- États du matériel
-CREATE TABLE etats (
+CREATE OR REPLACE TABLE etats (
   id          NUMBER PRIMARY KEY,
   nom         VARCHAR2(255) NOT NULL UNIQUE,
   etat VARCHAR2(50) 
 ) TABLESPACE TS_USERS;
 
 -- Types d'ordinateurs (Desktop, Laptop, Serveur...)
-CREATE TABLE types_ordinateur (
+CREATE OR REPLACE TABLE types_ordinateur (
   id  NUMBER PRIMARY KEY,
   machine_type VARCHAR2(255) NOT NULL 
 ) TABLESPACE TS_USERS;
 
 -- Modèles d'ordinateurs
-CREATE TABLE modeles_ordinateur (
+CREATE OR REPLACE TABLE modeles_ordinateur (
   id           NUMBER PRIMARY KEY,
   nom          VARCHAR2(255) NOT NULL,
   ref_produit  VARCHAR2(255),
@@ -177,17 +193,8 @@ CREATE TABLE modeles_ordinateur (
 
 -- TABLES UTILISATEURS (TS_USERS)
 
--- Profils de droits
-CREATE TABLE profils (
-  id        NUMBER PRIMARY KEY,
-  nom       VARCHAR2(255) NOT NULL UNIQUE,
-  interface VARCHAR2(50) DEFAULT 'central' CHECK (interface IN ('central','helpdesk')),
-  date_creation     DATE DEFAULT SYSDATE,
-  date_modification DATE DEFAULT SYSDATE
-) TABLESPACE TS_USERS;
-
 -- Utilisateurs
-CREATE TABLE utilisateurs (
+CREATE OR REPLACE TABLE utilisateurs (
   id              NUMBER PRIMARY KEY,
   login           VARCHAR2(255) NOT NULL UNIQUE,
   mot_de_passe    VARCHAR2(255) NOT NULL,
@@ -196,9 +203,8 @@ CREATE TABLE utilisateurs (
   email           VARCHAR2(255),
   telephone       VARCHAR2(50),
   mobile          VARCHAR2(50),
-  entite_id       NUMBER REFERENCES entites(id),
+  hierarchy_level_id       NUMBER REFERENCES hierarchy_level(id),
   localisation_id NUMBER REFERENCES localisations(id),
-  profil_id       NUMBER REFERENCES profils(id),
   site_id         NUMBER REFERENCES sites(id),
   langue          VARCHAR2(10) DEFAULT 'fr_FR',
   est_actif       NUMBER(1) DEFAULT 1 CHECK (est_actif IN (0,1)),
@@ -210,22 +216,11 @@ CREATE TABLE utilisateurs (
   date_modification DATE DEFAULT SYSDATE
 ) TABLESPACE TS_USERS;
 
--- Association profils <-> utilisateurs <-> entités
-CREATE TABLE profils_utilisateurs (
-  id             NUMBER PRIMARY KEY,
-  utilisateur_id NUMBER NOT NULL REFERENCES utilisateurs(id),
-  profil_id      NUMBER NOT NULL REFERENCES profils(id),
-  entite_id      NUMBER NOT NULL REFERENCES entites(id),
-  est_recursif   NUMBER(1) DEFAULT 0 CHECK (est_recursif IN (0,1)),
-  est_dynamique  NUMBER(1) DEFAULT 0 CHECK (est_dynamique IN (0,1)),
-  CONSTRAINT uk_profil_user_entite UNIQUE (utilisateur_id, profil_id, entite_id)
-) TABLESPACE TS_USERS;
-
 -- Groupes
-CREATE TABLE groupes (
+CREATE OR REPLACE TABLE groupes (
   id               NUMBER PRIMARY KEY,
   nom              VARCHAR2(255) NOT NULL,
-  entite_id        NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id        NUMBER NOT NULL REFERENCES hierarchy_level(id),
   groupe_parent_id NUMBER REFERENCES groupes(id),
   est_recursif     NUMBER(1) DEFAULT 0 CHECK (est_recursif IN (0,1)),
   commentaire      VARCHAR2(255),
@@ -238,12 +233,12 @@ CREATE TABLE groupes (
 -- TABLES MATÉRIEL (TS_MATERIEL_CERGY)
 
 -- Ordinateurs
-CREATE TABLE ordinateurs (
+CREATE OR REPLACE TABLE ordinateurs (
   id                  NUMBER PRIMARY KEY,
   nom                 VARCHAR2(255) NOT NULL,
   numero_serie        VARCHAR2(255),
   numero_inventaire   VARCHAR2(255),
-  entite_id           NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id           NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_id     NUMBER REFERENCES localisations(id),
   type_ordinateur_id  NUMBER REFERENCES types_ordinateur(id),
   modele_id           NUMBER REFERENCES modeles_ordinateur(id),
@@ -262,13 +257,13 @@ CREATE TABLE ordinateurs (
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 -- Périphériques (imprimantes, souris, claviers, vidéoprojecteurs, webcams...)
-CREATE TABLE peripheriques (
+CREATE OR REPLACE TABLE peripheriques (
   id                NUMBER PRIMARY KEY,
   nom               VARCHAR2(255) NOT NULL,
   numero_serie      VARCHAR2(255),
   type_peripherique VARCHAR2(100) NOT NULL
     CHECK (type_peripherique IN ('imprimante','souris','clavier','videoprojecteur','ecran','autre')),
-  entite_id         NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id         NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_id   NUMBER REFERENCES localisations(id),
   fabricant_id      NUMBER REFERENCES fabricants(id),
   etat_id           NUMBER REFERENCES etats(id),
@@ -281,14 +276,14 @@ CREATE TABLE peripheriques (
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 -- Téléphones (secrétariat, accueil)
-CREATE TABLE telephones (
+CREATE OR REPLACE TABLE telephones (
   id              NUMBER PRIMARY KEY,
   nom             VARCHAR2(255) NOT NULL,
   numero_serie    VARCHAR2(255),
   numero_tel      VARCHAR2(50),
   type_telephone  VARCHAR2(50) DEFAULT 'fixe'
     CHECK (type_telephone IN ('fixe','mobile','ip')),
-  entite_id       NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id       NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_id NUMBER REFERENCES localisations(id),
   fabricant_id    NUMBER REFERENCES fabricants(id),
   etat_id         NUMBER REFERENCES etats(id),
@@ -302,19 +297,19 @@ CREATE TABLE telephones (
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 -- Logiciels
-CREATE TABLE logiciels (
+CREATE OR REPLACE TABLE logiciels (
   id            NUMBER PRIMARY KEY,
   nom           VARCHAR2(255) NOT NULL,
   editeur       VARCHAR2(255),
   fabricant_id  NUMBER REFERENCES fabricants(id),
-  entite_id     NUMBER REFERENCES entites(id),
+  hierarchy_level_id     NUMBER REFERENCES hierarchy_level(id),
   est_supprime  NUMBER(1) DEFAULT 0,
   date_creation     DATE DEFAULT SYSDATE,
   date_modification DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 -- Versions de logiciels
-CREATE TABLE versions_logiciel (
+CREATE OR REPLACE TABLE versions_logiciel (
   id            NUMBER PRIMARY KEY,
   nom           VARCHAR2(255) NOT NULL,
   logiciel_id   NUMBER NOT NULL REFERENCES logiciels(id),
@@ -323,7 +318,7 @@ CREATE TABLE versions_logiciel (
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 -- Installations de logiciels (quel ordi a quel logiciel)
-CREATE TABLE installations_logiciels (
+CREATE OR REPLACE TABLE installations_logiciels (
   id                  NUMBER PRIMARY KEY,
   ordinateur_id       NUMBER NOT NULL REFERENCES ordinateurs(id),
   version_logiciel_id NUMBER NOT NULL REFERENCES versions_logiciel(id),
@@ -337,17 +332,17 @@ CREATE TABLE installations_logiciels (
 
 
 -- Types d'équipements réseau
-CREATE TABLE types_equip_reseau (
+CREATE OR REPLACE TABLE types_equip_reseau (
   id  NUMBER PRIMARY KEY,
   nom VARCHAR2(255) NOT NULL UNIQUE  -- switch, routeur, AP WiFi, firewall
 ) TABLESPACE TS_NETWORK_CERGY;
 
 -- Équipements réseau
-CREATE TABLE equipements_reseau (
+CREATE OR REPLACE TABLE equipements_reseau (
   id              NUMBER PRIMARY KEY,
   nom             VARCHAR2(255) NOT NULL,
   numero_serie    VARCHAR2(255),
-  entite_id       NUMBER NOT NULL REFERENCES entites(id),
+  hierarchy_level_id       NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_id NUMBER REFERENCES localisations(id),
   type_equip_id   NUMBER REFERENCES types_equip_reseau(id),
   fabricant_id    NUMBER REFERENCES fabricants(id),
@@ -361,7 +356,7 @@ CREATE TABLE equipements_reseau (
 ) TABLESPACE TS_NETWORK_CERGY;
 
 -- Ports réseau (ethernet ou wifi sur un équipement)
-CREATE TABLE ports_reseau (
+CREATE OR REPLACE TABLE ports_reseau (
   id            NUMBER PRIMARY KEY,
   nom           VARCHAR2(255),
   equipement_id NUMBER NOT NULL REFERENCES equipements_reseau(id),
@@ -377,7 +372,7 @@ CREATE TABLE ports_reseau (
 
 -- TABLE HISTORIQUE (AUDIT)
 
-CREATE TABLE historique (
+CREATE OR REPLACE TABLE historique (
   id              NUMBER PRIMARY KEY,
   type_objet      VARCHAR2(100) NOT NULL,
   objet_id        NUMBER NOT NULL,
@@ -393,14 +388,14 @@ CREATE TABLE historique (
 
 -- PARTIE 9 : CLUSTER
 
-CREATE CLUSTER cl_materiel_localisation (localisation_id NUMBER)
+CREATE OR REPLACE CLUSTER cl_materiel_localisation (localisation_id NUMBER)
   SIZE 512 TABLESPACE TS_MATERIEL_CERGY;
 
 CREATE INDEX idx_cluster_materiel_loc ON CLUSTER cl_materiel_localisation;
 
 -- Pour utiliser le cluster, recréer les tables avec la clause CLUSTER :
--- CREATE TABLE ordinateurs_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
--- CREATE TABLE peripheriques_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
+-- CREATE OR REPLACE TABLE ordinateurs_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
+-- CREATE OR REPLACE TABLE peripheriques_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
 -- Puis : INSERT INTO ordinateurs_cl SELECT * FROM ordinateurs;
 -- DROP TABLE ordinateurs; ALTER TABLE ordinateurs_cl RENAME TO ordinateurs;
 
@@ -411,7 +406,7 @@ CREATE INDEX idx_cluster_materiel_loc ON CLUSTER cl_materiel_localisation;
 -- ── Index B-TREE sur les FK et champs de recherche ──
 
 -- Ordinateurs
-CREATE INDEX idx_ordi_entite ON ordinateurs(entite_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_hierarchy_level ON ordinateurs(hierarchy_level_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_ordi_localisation ON ordinateurs(localisation_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_ordi_utilisateur ON ordinateurs(utilisateur_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_ordi_fabricant ON ordinateurs(fabricant_id) TABLESPACE TS_INDEX;
@@ -421,23 +416,23 @@ CREATE INDEX idx_ordi_nom ON ordinateurs(nom) TABLESPACE TS_INDEX;
 CREATE INDEX idx_ordi_serie ON ordinateurs(numero_serie) TABLESPACE TS_INDEX;
 
 -- Périphériques
-CREATE INDEX idx_periph_entite ON peripheriques(entite_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_periph_hierarchy_level ON peripheriques(hierarchy_level_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_periph_site ON peripheriques(site_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_periph_type ON peripheriques(type_peripherique) TABLESPACE TS_INDEX;
 CREATE INDEX idx_periph_utilisateur ON peripheriques(utilisateur_id) TABLESPACE TS_INDEX;
 
 -- Téléphones
-CREATE INDEX idx_tel_entite ON telephones(entite_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_tel_hierarchy_level ON telephones(hierarchy_level_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_tel_site ON telephones(site_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_tel_service ON telephones(service) TABLESPACE TS_INDEX;
 
 -- Utilisateurs
-CREATE INDEX idx_user_entite ON utilisateurs(entite_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_user_hierarchy_level ON utilisateurs(hierarchy_level_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_user_site ON utilisateurs(site_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_user_nom ON utilisateurs(nom) TABLESPACE TS_INDEX;
 
 -- Équipements réseau
-CREATE INDEX idx_equip_entite ON equipements_reseau(entite_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_equip_hierarchy_level ON equipements_reseau(hierarchy_level_id) TABLESPACE TS_INDEX;
 CREATE INDEX idx_equip_site ON equipements_reseau(site_id) TABLESPACE TS_INDEX;
 
 -- Ports réseau
@@ -520,15 +515,44 @@ WHERE er.est_supprime = 0;
 -- Vue : Utilisateurs avec profils et droits
 CREATE OR REPLACE VIEW vue_utilisateurs_droits AS
 SELECT u.id, u.login, u.nom, u.prenom, u.email,
-       s.nom AS site, ent.nom AS entite,
+       s.nom AS site, ent.nom AS hierarchy_level,
        p.nom AS profil, p.interface,
        u.est_actif, u.date_creation
 FROM utilisateurs u
   LEFT JOIN sites s ON u.site_id = s.id
-  LEFT JOIN entites ent ON u.entite_id = ent.id
-  LEFT JOIN profils_utilisateurs pu ON pu.utilisateur_id = u.id
-  LEFT JOIN profils p ON pu.profil_id = p.id
+  LEFT JOIN hierarchy_level ent ON u.hierarchy_level_id = ent.id
+  --LEFT JOIN profils_utilisateurs pu ON pu.utilisateur_id = u.id //supprimer
+  --LEFT JOIN profils p ON pu.profil_id = p.id                    //supprimer
 WHERE u.est_supprime = 0;
+
+-- Vue de defragmentation amelioree (parc global)
+CREATE OR REPLACE VIEW vue_parc_global_v2 AS
+SELECT 'CERGY' AS source,
+       o.id, o.nom, o.numero_serie, o.numero_inventaire,
+       o.site_id, o.hierarchy_level_id,
+       f.nom AS fabricant, e.nom AS etat,
+       l.nom AS localisation, l.batiment, l.salle,
+       u.login AS utilisateur,
+       o.date_achat, o.date_creation
+  FROM ordinateurs o
+  LEFT JOIN fabricants    f ON f.id = o.fabricant_id
+  LEFT JOIN etats         e ON e.id = o.etat_id
+  LEFT JOIN localisations l ON l.id = o.localisalion_id
+  LEFT JOIN utilisateurs  u ON u.id = o.utilisateur_id
+ WHERE o.est_supprime = 0
+UNION ALL
+SELECT 'PAU' AS source,
+       o.id, o.nom, o.numero_serie, o.numero_inventaire,
+       o.site_id, o.hierarchy_level_id,
+       f.nom, e.nom, l.nom, l.batiment, l.salle,
+       u.login,
+       o.date_achat, o.date_creation
+  FROM ordinateurs@db_pau o
+  LEFT JOIN fabricants@db_pau    f ON f.id = o.fabricant_id
+  LEFT JOIN etats@db_pau         e ON e.id = o.etat_id
+  LEFT JOIN localisations@db_pau l ON l.id = o.localisation_id
+  LEFT JOIN utilisateurs@db_pau  u ON u.id = o.utilisateur_id
+ WHERE o.est_supprime = 0;
 
 -- Vue matérialisée : Stats du parc par site
 CREATE MATERIALIZED VIEW mv_stats_parc
@@ -546,7 +570,7 @@ GROUP BY s.nom, e.nom;
 
 -- Database Link : Cergy vers Pau
 CREATE DATABASE LINK db_pau
-  CONNECT TO TECH_PAU IDENTIFIED BY cergy2026
+  CONNECT TO TECH_PAU IDENTIFIED BY pau2026
   USING 'XE_PAU';
 
 -- Database Link : Pau vers Cergy (à exécuter depuis Pau)
@@ -555,16 +579,16 @@ CREATE DATABASE LINK db_pau
 --   USING 'XE_CERGY';
 
 -- Synonymes pour transparence d'accès
-CREATE PUBLIC SYNONYM ordinateurs_pau FOR ordinateurs@db_pau;
-CREATE PUBLIC SYNONYM peripheriques_pau FOR peripheriques@db_pau;
-CREATE PUBLIC SYNONYM telephones_pau FOR telephones@db_pau;
-CREATE PUBLIC SYNONYM equipements_reseau_pau FOR equipements_reseau@db_pau;
+CREATE OR REPLACE PUBLIC SYNONYM ordinateurs_pau FOR ordinateurs@db_pau;
+CREATE OR REPLACE PUBLIC SYNONYM peripheriques_pau FOR peripheriques@db_pau;
+CREATE OR REPLACE PUBLIC SYNONYM telephones_pau FOR telephones@db_pau;
+CREATE OR REPLACE PUBLIC SYNONYM equipements_reseau_pau FOR equipements_reseau@db_pau;
 
 -- Vue de défragmentation : parc global (Cergy + Pau)
 CREATE OR REPLACE VIEW vue_parc_global AS
-SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs
+SELECT id, nom, numero_serie, site_id, hierarchy_level_id, date_creation FROM ordinateurs
 UNION ALL
-SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs@db_pau;
+SELECT id, nom, numero_serie, site_id, hierarchy_level_id, date_creation FROM ordinateurs@db_pau;
 
 -- Vues matérialisées côté Pau (réplication des référentiels depuis Cergy)
 -- À exécuter depuis le serveur de Pau :
@@ -589,7 +613,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON installations_logiciels TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON equipements_reseau TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ports_reseau TO TECH_CERGY;
 GRANT SELECT ON utilisateurs TO TECH_CERGY;
-GRANT SELECT ON profils TO TECH_CERGY;
+--GRANT SELECT ON profils TO TECH_CERGY;      //supprimer
 
 -- Technicien Pau : lecture sur Cergy
 GRANT SELECT ON ordinateurs TO TECH_PAU;

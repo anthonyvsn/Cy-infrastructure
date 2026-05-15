@@ -134,18 +134,16 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   BEGIN
     v_mac := '';
     FOR i IN 1..6 LOOP
-      v_mac := v_mac ||
-               LPAD(TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(0, 256)), 'FM0X'), 2, '0');
-      IF i < 6 THEN v_mac := v_mac || ':'; END IF;
+      v_mac := v_mac || LPAD(TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(0, 256)), 'FM0X'), 2, '0');
+      IF i < 6 THEN v_mac := v_mac || ':';
+      END IF;
     END LOOP;
     RETURN v_mac;
   END;
 
   FUNCTION random_serial(p_prefix VARCHAR2 DEFAULT 'SN') RETURN VARCHAR2 IS
   BEGIN
-    RETURN p_prefix || '-' ||
-           TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(100000, 999999))) ||
-           '-' || random_string(3);
+    RETURN p_prefix || '-' || TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(100000, 999999))) || '-' || random_string(3);
   END;
 
   FUNCTION random_date_passee(p_jours_max NUMBER DEFAULT 1825) RETURN DATE IS
