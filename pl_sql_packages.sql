@@ -1550,7 +1550,8 @@ GRANT EXECUTE ON pkg_parc_info   TO TECH_CERGY;
 GRANT EXECUTE ON pkg_parc_info   TO TECH_PAU;
 GRANT EXECUTE ON pkg_stats       TO TECH_CERGY;
 GRANT EXECUTE ON pkg_stats       TO TECH_PAU;
-GRANT EXECUTE ON pkg_stats       TO USER_RO;     -- lecture seule, stats OK
+-- USER_RO en lecture seule : peut consulter les stats
+GRANT EXECUTE ON pkg_stats       TO USER_RO;
 GRANT EXECUTE ON pkg_reseau      TO TECH_CERGY;
 GRANT EXECUTE ON pkg_reseau      TO TECH_PAU;
 GRANT EXECUTE ON pkg_maintenance TO TECH_CERGY;

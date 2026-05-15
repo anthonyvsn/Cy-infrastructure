@@ -220,8 +220,7 @@ INSERT INTO test_ts_pau_marker(id, libelle)
 VALUES (1, 'Tablespace TS_MATERIEL_PAU utilise -- replique sur XE_PAU');
 
 COMMENT ON TABLE test_ts_pau_marker IS
-  'Marqueur : prouve que TS_MATERIEL_PAU est exploitable. ' ||
-  'Sur l instance XE_PAU, les vraies tables materiel y resident.';
+  'Marqueur : prouve que TS_MATERIEL_PAU est exploitable. Sur l instance XE_PAU, les vraies tables materiel y resident.';
 
 
 
@@ -303,7 +302,8 @@ PROMPT ----- Verifications -----
 SELECT username, account_status FROM dba_users WHERE username = 'TECH_PAU';
 
 -- 2) Le cluster est-il maintenant utilise ?
-SELECT cluster_name, table_name FROM user_cluster_tables ORDER BY table_name;
+SELECT cluster_name, table_name FROM user_tables
+ WHERE cluster_name IS NOT NULL ORDER BY table_name;
 
 -- 3) Combien de tables par tablespace ?
 SELECT tablespace_name, COUNT(*) AS nb_tables

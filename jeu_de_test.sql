@@ -40,6 +40,7 @@
 -- =============================================================================
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
+SET DEFINE OFF;
 ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD';
 
 -- -----------------------------------------------------------------------------
@@ -163,7 +164,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   -- Choisit une entite aleatoire (departement ou service) selon le site
   FUNCTION random_entite_site(p_site NUMBER) RETURN NUMBER IS
   BEGIN
-    IF p_site = c_site_cergy THEN
+    IF p_site = 1 THEN
       RETURN TRUNC(DBMS_RANDOM.VALUE(v_cergy_dpt_min, v_cergy_dpt_max + 1));
     ELSE
       RETURN TRUNC(DBMS_RANDOM.VALUE(v_pau_dpt_min, v_pau_dpt_max + 1));
@@ -281,89 +282,89 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   BEGIN
     -- Racine
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'CY Tech', NULL, c_site_cergy, 0, 'CY Tech')
+    VALUES (seq_entites.NEXTVAL, 'CY Tech', NULL, 1, 0, 'CY Tech')
     RETURNING id INTO v_id_racine;
 
     -- Niveau 1 : sites (Cergy, Pau) en tant qu'entites organisationnelles
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Cergy', v_id_racine, c_site_cergy, 1,
+    VALUES (seq_entites.NEXTVAL, 'Cergy', v_id_racine, 1, 1,
             'CY Tech > Cergy')
     RETURNING id INTO v_id_cergy;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Pau', v_id_racine, c_site_pau, 1,
+    VALUES (seq_entites.NEXTVAL, 'Pau', v_id_racine, 2, 1,
             'CY Tech > Pau')
     RETURNING id INTO v_id_pau;
 
     -- Niveau 2 - Cergy : services + 4 departements pedagogiques
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Gestion', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Gestion', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Gestion')
     RETURNING id INTO v_ent_cergy_gestion;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'IT', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'IT', v_id_cergy, 1, 2,
             'CY Tech > Cergy > IT')
     RETURNING id INTO v_ent_cergy_it;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Administration', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Administration', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Administration')
     RETURNING id INTO v_ent_cergy_admin;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Bureau des profs', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Bureau des profs', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Bureau des profs')
     RETURNING id INTO v_ent_cergy_profs;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Informatique', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Informatique', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Dept Informatique')
     RETURNING id INTO v_ent_cergy_info;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Maths appliquees', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Maths appliquees', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Dept Maths appliquees')
     RETURNING id INTO v_ent_cergy_maths;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Biotech & Chimie', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Biotech & Chimie', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Dept Biotech & Chimie')
     RETURNING id INTO v_ent_cergy_biotech;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Genie Civil', v_id_cergy, c_site_cergy, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Genie Civil', v_id_cergy, 1, 2,
             'CY Tech > Cergy > Dept Genie Civil')
     RETURNING id INTO v_ent_cergy_gc;
 
     -- Niveau 2 - Pau : services + 2 departements pedagogiques
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Gestion', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'Gestion', v_id_pau, 2, 2,
             'CY Tech > Pau > Gestion')
     RETURNING id INTO v_ent_pau_gestion;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'IT', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'IT', v_id_pau, 2, 2,
             'CY Tech > Pau > IT')
     RETURNING id INTO v_ent_pau_it;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Administration', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'Administration', v_id_pau, 2, 2,
             'CY Tech > Pau > Administration')
     RETURNING id INTO v_ent_pau_admin;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Bureau des profs', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'Bureau des profs', v_id_pau, 2, 2,
             'CY Tech > Pau > Bureau des profs')
     RETURNING id INTO v_ent_pau_profs;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Informatique', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Informatique', v_id_pau, 2, 2,
             'CY Tech > Pau > Dept Informatique')
     RETURNING id INTO v_ent_pau_info;
 
     INSERT INTO entites(id, nom, entite_parent_id, site_id, niveau, nom_complet)
-    VALUES (seq_entites.NEXTVAL, 'Dept Maths appliquees', v_id_pau, c_site_pau, 2,
+    VALUES (seq_entites.NEXTVAL, 'Dept Maths appliquees', v_id_pau, 2, 2,
             'CY Tech > Pau > Dept Maths appliquees')
     RETURNING id INTO v_ent_pau_maths;
 
@@ -408,12 +409,12 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
         INSERT INTO localisations(id, nom, nom_complet, entite_id, localisation_parent_id,
                                   batiment, salle, etage)
         VALUES (seq_localisations.NEXTVAL,
-                p_nom_bat || et || LPAD(sa, 2, '0'),
-                'Batiment ' || p_nom_bat || ' > Etage ' || et || ' > Salle ' || LPAD(sa, 2, '0'),
+                p_nom_bat || TO_CHAR(et) || LPAD(TO_CHAR(sa), 2, '0'),
+                'Batiment ' || p_nom_bat || ' > Etage ' || TO_CHAR(et) || ' > Salle ' || LPAD(TO_CHAR(sa), 2, '0'),
                 p_entite_id,
                 v_id_bat,
                 p_nom_bat,
-                LPAD(sa, 2, '0'),
+                LPAD(TO_CHAR(sa), 2, '0'),
                 TO_CHAR(et));
       END LOOP;
     END LOOP;
@@ -423,12 +424,12 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
       INSERT INTO localisations(id, nom, nom_complet, entite_id, localisation_parent_id,
                                 batiment, salle, etage)
       VALUES (seq_localisations.NEXTVAL,
-              'Bureau_' || p_nom_bat || '_' || LPAD(b, 2, '0'),
-              'Batiment ' || p_nom_bat || ' > Bureau ' || LPAD(b, 2, '0'),
+              'Bureau_' || p_nom_bat || '_' || LPAD(TO_CHAR(b), 2, '0'),
+              'Batiment ' || p_nom_bat || ' > Bureau ' || LPAD(TO_CHAR(b), 2, '0'),
               p_entite_id,
               v_id_bat,
               p_nom_bat,
-              'Bureau' || LPAD(b, 2, '0'),
+              'Bureau' || LPAD(TO_CHAR(b), 2, '0'),
               NULL);
     END LOOP;
   END creer_batiment;
@@ -436,15 +437,15 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   PROCEDURE peupler_localisations IS
   BEGIN
     -- Cergy - Site du Parc : 3 batiments de 3 etages
-    creer_batiment('Condorcet', c_site_cergy, v_ent_cergy_info,    3);
-    creer_batiment('Cauchy',    c_site_cergy, v_ent_cergy_maths,   3);
-    creer_batiment('Turing',    c_site_cergy, v_ent_cergy_info,    3);
+    creer_batiment('Condorcet', 1, v_ent_cergy_info,    3);
+    creer_batiment('Cauchy',    1, v_ent_cergy_maths,   3);
+    creer_batiment('Turing',    1, v_ent_cergy_info,    3);
 
     -- Cergy - Site Fermat (FT) : 1 batiment de 2 etages
-    creer_batiment('Fermat',    c_site_cergy, v_ent_cergy_gc,      2);
+    creer_batiment('Fermat',    1, v_ent_cergy_gc,      2);
 
     -- Pau : 1 batiment de 2 etages
-    creer_batiment('PAU',       c_site_pau,   v_ent_pau_info,      2);
+    creer_batiment('PAU',       2,   v_ent_pau_info,      2);
 
     DBMS_OUTPUT.PUT_LINE('  Localisations : 5 batiments + 75 salles + 25 bureaux = 105');
   END peupler_localisations;
@@ -453,38 +454,48 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   -- 4) FABRICANTS / ETATS / TYPES / MODELES / PROFILS / GROUPES
   -- ---------------------------------------------------------------------------
   PROCEDURE peupler_fabricants IS
+    v_nom VARCHAR2(100);
   BEGIN
-    FOR i IN 1..v_fabricants.COUNT LOOP
-      INSERT INTO fabricants(id, nom) VALUES (seq_fabricants.NEXTVAL, v_fabricants(i));
+    FOR i IN 1..20 LOOP
+      v_nom := v_fabricants(i);
+      INSERT INTO fabricants(id, nom) VALUES (seq_fabricants.NEXTVAL, v_nom);
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('  Fabricants : ' || v_fabricants.COUNT);
+    DBMS_OUTPUT.PUT_LINE('  Fabricants : ' || TO_CHAR(20));
   END peupler_fabricants;
 
   PROCEDURE peupler_etats IS
+    v_nom VARCHAR2(100);
   BEGIN
-    FOR i IN 1..v_etats_lib.COUNT LOOP
-      INSERT INTO etats(id, nom, etat) VALUES (seq_etats.NEXTVAL, v_etats_lib(i), v_etats_lib(i));
+    FOR i IN 1..8 LOOP
+      v_nom := v_etats_lib(i);
+      INSERT INTO etats(id, nom, etat) VALUES (seq_etats.NEXTVAL, v_nom, v_nom);
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('  Etats : ' || v_etats_lib.COUNT);
+    DBMS_OUTPUT.PUT_LINE('  Etats : ' || TO_CHAR(8));
   END peupler_etats;
 
   PROCEDURE peupler_types_ordi IS
+    v_nom VARCHAR2(100);
   BEGIN
-    FOR i IN 1..v_types_ordi.COUNT LOOP
+    FOR i IN 1..5 LOOP
+      v_nom := v_types_ordi(i);
       INSERT INTO types_ordinateur(id, machine_type)
-      VALUES (seq_types_ordinateur.NEXTVAL, v_types_ordi(i));
+      VALUES (seq_types_ordinateur.NEXTVAL, v_nom);
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('  Types ordi : ' || v_types_ordi.COUNT);
+    DBMS_OUTPUT.PUT_LINE('  Types ordi : ' || TO_CHAR(5));
   END peupler_types_ordi;
 
   PROCEDURE peupler_modeles IS
+    v_fab_nom VARCHAR2(100);
+    v_fab_idx NUMBER;
   BEGIN
     FOR i IN 1..30 LOOP
+      v_fab_idx := MOD(i, 20) + 1;
+      v_fab_nom := v_fabricants(v_fab_idx);
       INSERT INTO modeles_ordinateur(id, nom, ref_produit, fabricant_id)
       VALUES (seq_modeles_ordinateur.NEXTVAL,
-              v_fabricants(MOD(i, v_fabricants.COUNT) + 1) || ' Model ' || i,
-              'REF-' || LPAD(i, 4, '0'),
-              MOD(i, v_fabricants.COUNT) + 1);
+              v_fab_nom || ' Model ' || TO_CHAR(i),
+              'REF-' || LPAD(TO_CHAR(i), 4, '0'),
+              v_fab_idx);
     END LOOP;
     DBMS_OUTPUT.PUT_LINE('  Modeles : 30');
   END peupler_modeles;
@@ -506,12 +517,14 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   END peupler_profils;
 
   PROCEDURE peupler_groupes IS
+    v_ent_id NUMBER;
   BEGIN
     FOR i IN 1..20 LOOP
+      v_ent_id := random_entite_site(CASE WHEN MOD(i,2)=0 THEN 1 ELSE 2 END);
       INSERT INTO groupes(id, nom, entite_id, est_recursif, commentaire)
       VALUES (seq_groupes.NEXTVAL,
-              'Groupe ' || i,
-              random_entite_site(CASE WHEN MOD(i,2)=0 THEN c_site_cergy ELSE c_site_pau END),
+              'Groupe ' || TO_CHAR(i),
+              v_ent_id,
               CASE WHEN MOD(i, 3) = 0 THEN 1 ELSE 0 END,
               'Groupe genere automatiquement');
     END LOOP;
@@ -532,10 +545,14 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
     v_prenom VARCHAR2(100);
     v_nom    VARCHAR2(100);
     v_login  VARCHAR2(255);
+    v_loc_id NUMBER;
+    v_tel    VARCHAR2(50);
   BEGIN
-    v_prenom := v_prenoms(TRUNC(DBMS_RANDOM.VALUE(1, v_prenoms.COUNT + 1)));
-    v_nom    := v_noms(TRUNC(DBMS_RANDOM.VALUE(1, v_noms.COUNT + 1)));
-    v_login  := LOWER(p_prefix || SUBSTR(v_prenom, 1, 1) || v_nom) || p_idx;
+    v_prenom := v_prenoms(TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)));
+    v_nom    := v_noms(TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)));
+    v_login  := LOWER(p_prefix || SUBSTR(v_prenom, 1, 1) || v_nom) || TO_CHAR(p_idx);
+    v_loc_id := random_localisation_site(p_site_id);
+    v_tel    := '06' || LPAD(TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(0, 100000000))), 8, '0');
 
     INSERT INTO utilisateurs(id, login, mot_de_passe, nom, prenom, email, telephone,
                              entite_id, localisation_id, profil_id, site_id,
@@ -546,9 +563,9 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
             'hash_' || random_string(16),
             v_nom, v_prenom,
             LOWER(v_prenom) || '.' || LOWER(v_nom) || '@cytech.fr',
-            '06' || LPAD(TRUNC(DBMS_RANDOM.VALUE(0, 100000000)), 8, '0'),
+            v_tel,
             p_entite_id,
-            random_localisation_site(p_site_id),
+            v_loc_id,
             p_profil_id,
             p_site_id,
             'fr_FR',
@@ -571,8 +588,8 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   BEGIN
     -- Etudiants : entites = departements pedagogiques (info/maths/biotech/gc)
     FOR i IN 1..p_nb_etudiants LOOP
-      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.8 THEN c_site_cergy ELSE c_site_pau END;
-      IF v_site = c_site_cergy THEN
+      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.8 THEN 1 ELSE 2 END;
+      IF v_site = 1 THEN
         v_ent := CASE TRUNC(DBMS_RANDOM.VALUE(0, 4))
                    WHEN 0 THEN v_ent_cergy_info
                    WHEN 1 THEN v_ent_cergy_maths
@@ -588,22 +605,22 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
 
     -- Enseignants : entite Bureau des profs (1 par site)
     FOR i IN 1..p_nb_profs LOOP
-      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.81 THEN c_site_cergy ELSE c_site_pau END;
-      v_ent  := CASE WHEN v_site = c_site_cergy THEN v_ent_cergy_profs ELSE v_ent_pau_profs END;
+      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.81 THEN 1 ELSE 2 END;
+      v_ent  := CASE WHEN v_site = 1 THEN v_ent_cergy_profs ELSE v_ent_pau_profs END;
       inserer_utilisateur(c_prof_enseignant, v_site, v_ent, i, 'prof_');
     END LOOP;
 
     -- Administration (gestion/scolarite/direction)
     FOR i IN 1..p_nb_admins LOOP
-      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.83 THEN c_site_cergy ELSE c_site_pau END;
-      v_ent  := CASE WHEN v_site = c_site_cergy THEN v_ent_cergy_admin ELSE v_ent_pau_admin END;
+      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.83 THEN 1 ELSE 2 END;
+      v_ent  := CASE WHEN v_site = 1 THEN v_ent_cergy_admin ELSE v_ent_pau_admin END;
       inserer_utilisateur(c_prof_administ, v_site, v_ent, i, 'adm_');
     END LOOP;
 
     -- Techniciens IT : entite IT
     FOR i IN 1..p_nb_techs LOOP
-      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.7 THEN c_site_cergy ELSE c_site_pau END;
-      v_ent  := CASE WHEN v_site = c_site_cergy THEN v_ent_cergy_it ELSE v_ent_pau_it END;
+      v_site := CASE WHEN DBMS_RANDOM.VALUE < 0.7 THEN 1 ELSE 2 END;
+      v_ent  := CASE WHEN v_site = 1 THEN v_ent_cergy_it ELSE v_ent_pau_it END;
       inserer_utilisateur(c_prof_technicien, v_site, v_ent, i, 'tech_');
     END LOOP;
 
@@ -670,11 +687,11 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
                 sa.id,
                 v_id_type_desktop,
                 TRUNC(DBMS_RANDOM.VALUE(1, 31)),
-                TRUNC(DBMS_RANDOM.VALUE(1, v_fabricants.COUNT + 1)),
+                TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)),
                 1,           -- 'En service'
                 NULL,        -- pas d'utilisateur (PC de salle)
                 NULL,
-                c_site_cergy,
+                1,
                 'PC fixe de salle TP',
                 0, 0,
                 random_date_passee(1825),
@@ -705,7 +722,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
                               commentaire, est_supprime, est_template,
                               date_achat, date_creation, date_modification)
       VALUES (seq_ordinateurs.NEXTVAL,
-              'LT-' || CASE u.site_id WHEN c_site_cergy THEN 'CGY' ELSE 'PAU' END
+              'LT-' || CASE u.site_id WHEN 1 THEN 'CGY' ELSE 'PAU' END
                  || '-' || LPAD(v_count, 5, '0'),
               random_serial('SN-LT'),
               'INV-LT-' || LPAD(v_count, 6, '0'),
@@ -713,7 +730,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
               u.localisation_id,
               v_id_type_laptop,
               TRUNC(DBMS_RANDOM.VALUE(1, 31)),
-              TRUNC(DBMS_RANDOM.VALUE(1, v_fabricants.COUNT + 1)),
+              TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)),
               CASE WHEN DBMS_RANDOM.VALUE < 0.93 THEN 1 ELSE 3 END, -- 93% en service, 7% en reparation
               u.id,
               NULL,
@@ -801,7 +818,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
               sa.entite_id, sa.id, v_id_fab_epson,
               CASE WHEN DBMS_RANDOM.VALUE < 0.95 THEN 1 ELSE 3 END,
               NULL,
-              CASE WHEN sa.nom LIKE 'PAU%' THEN c_site_pau ELSE c_site_cergy END,
+              CASE WHEN sa.nom LIKE 'PAU%' THEN 2 ELSE 1 END,
               'Videoprojecteur de salle', 0,
               random_date_passee(1825), SYSDATE);
       v_count_periph := v_count_periph + 1;
@@ -821,7 +838,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
               (SELECT entite_id FROM localisations WHERE id = et.sample_id),
               et.sample_id, v_id_fab_brother,
               1, NULL,
-              CASE WHEN et.batiment = 'PAU' THEN c_site_pau ELSE c_site_cergy END,
+              CASE WHEN et.batiment = 'PAU' THEN 2 ELSE 1 END,
               'Imprimante partagee etage ' || et.etage || ' batiment ' || et.batiment, 0,
               random_date_passee(1825), SYSDATE);
       v_count_periph := v_count_periph + 1;
@@ -849,12 +866,12 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
       VALUES (seq_telephones.NEXTVAL,
               'Tel-Admin-' || LPAD(v_count, 3, '0'),
               random_serial('TEL'),
-              CASE WHEN u.site_id = c_site_cergy THEN '0134' ELSE '0559' END
+              CASE WHEN u.site_id = 1 THEN '0134' ELSE '0559' END
                 || LPAD(TRUNC(DBMS_RANDOM.VALUE(0, 1000000)), 6, '0'),
               'fixe',
               u.entite_id,
               u.localisation_id,
-              TRUNC(DBMS_RANDOM.VALUE(1, v_fabricants.COUNT + 1)),
+              TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)),
               1,
               u.id,
               u.site_id,
@@ -870,16 +887,20 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
   -- 9) LOGICIELS + VERSIONS + INSTALLATIONS
   -- ---------------------------------------------------------------------------
   PROCEDURE peupler_logiciels IS
+    v_nom_log VARCHAR2(100);
+    v_editeur VARCHAR2(100);
   BEGIN
-    FOR i IN 1..v_logiciels.COUNT LOOP
+    FOR i IN 1..20 LOOP
+      v_nom_log := v_logiciels(i);
+      v_editeur := v_fabricants(TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)));
       INSERT INTO logiciels(id, nom, editeur, fabricant_id, entite_id, est_supprime,
                             date_creation, date_modification)
-      VALUES (seq_logiciels.NEXTVAL, v_logiciels(i),
-              v_fabricants(TRUNC(DBMS_RANDOM.VALUE(1, v_fabricants.COUNT + 1))),
-              TRUNC(DBMS_RANDOM.VALUE(1, v_fabricants.COUNT + 1)),
+      VALUES (seq_logiciels.NEXTVAL, v_nom_log,
+              v_editeur,
+              TRUNC(DBMS_RANDOM.VALUE(1, 20 + 1)),
               1, 0, random_date_passee(1825), SYSDATE);
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('  Logiciels : ' || v_logiciels.COUNT);
+    DBMS_OUTPUT.PUT_LINE('  Logiciels : ' || TO_CHAR(20));
 
     FOR rec IN (SELECT id FROM logiciels) LOOP
       FOR v IN 1..TRUNC(DBMS_RANDOM.VALUE(2, 6)) LOOP
@@ -887,7 +908,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
         VALUES (seq_versions_logiciel.NEXTVAL,
                 'v' || v || '.' || TRUNC(DBMS_RANDOM.VALUE(0, 10)),
                 rec.id,
-                TRUNC(DBMS_RANDOM.VALUE(1, v_etats_lib.COUNT + 1)),
+                TRUNC(DBMS_RANDOM.VALUE(1, 8 + 1)),
                 random_date_passee(1095));
       END LOOP;
     END LOOP;
@@ -954,10 +975,14 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
        WHERE etage IS NOT NULL;
   BEGIN
     -- Types d'equipement
-    FOR i IN 1..v_types_equip.COUNT LOOP
-      INSERT INTO types_equip_reseau(id, nom)
-      VALUES (seq_types_equip_reseau.NEXTVAL, v_types_equip(i));
-    END LOOP;
+    DECLARE v_nom VARCHAR2(100);
+    BEGIN
+      FOR i IN 1..3 LOOP
+        v_nom := v_types_equip(i);
+        INSERT INTO types_equip_reseau(id, nom)
+        VALUES (seq_types_equip_reseau.NEXTVAL, v_nom);
+      END LOOP;
+    END;
 
     SELECT id INTO v_id_type_switch
       FROM types_equip_reseau WHERE nom = 'Switch' AND ROWNUM = 1;
@@ -970,7 +995,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
     SELECT id INTO v_id_fab_aruba    FROM fabricants WHERE nom = 'Aruba'    AND ROWNUM = 1;
     SELECT id INTO v_id_fab_ubiquiti FROM fabricants WHERE nom = 'Ubiquiti' AND ROWNUM = 1;
 
-    DBMS_OUTPUT.PUT_LINE('  Types equip reseau : ' || v_types_equip.COUNT);
+    DBMS_OUTPUT.PUT_LINE('  Types equip reseau : ' || 3);
 
     -- 1 switch + 1 routeur WiFi par salle
     FOR sa IN c_salles LOOP
@@ -982,7 +1007,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
                                      nb_ports, commentaire, est_supprime,
                                      date_creation, date_modification)
       VALUES (seq_equip_reseau.NEXTVAL,
-              'SW-' || CASE sa.site_id WHEN c_site_cergy THEN 'CGY' ELSE 'PAU' END
+              'SW-' || CASE sa.site_id WHEN 1 THEN 'CGY' ELSE 'PAU' END
                 || '-' || sa.batiment || '-' || sa.nom,
               random_serial('NET-SW'),
               sa.entite_id, sa.id,
@@ -1016,7 +1041,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
                                      nb_ports, commentaire, est_supprime,
                                      date_creation, date_modification)
       VALUES (seq_equip_reseau.NEXTVAL,
-              'RTW-' || CASE sa.site_id WHEN c_site_cergy THEN 'CGY' ELSE 'PAU' END
+              'RTW-' || CASE sa.site_id WHEN 1 THEN 'CGY' ELSE 'PAU' END
                 || '-' || sa.batiment || '-' || sa.nom,
               random_serial('NET-RTW'),
               sa.entite_id, sa.id,
@@ -1035,7 +1060,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_jeu_test AS
                                      nb_ports, commentaire, est_supprime,
                                      date_creation, date_modification)
       VALUES (seq_equip_reseau.NEXTVAL,
-              'AP-' || CASE et.site_id WHEN c_site_cergy THEN 'CGY' ELSE 'PAU' END
+              'AP-' || CASE et.site_id WHEN 1 THEN 'CGY' ELSE 'PAU' END
                 || '-' || et.batiment || '-Et' || et.etage,
               random_serial('NET-AP'),
               (SELECT entite_id FROM localisations WHERE id = et.sample_id),
