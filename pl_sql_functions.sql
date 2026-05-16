@@ -23,8 +23,9 @@ BEGIN
    WHERE site_id = p_site_id AND est_supprime = 0;
   RETURN v_count;
 END;
+/
 
-/* Compte le nbre de matériels d'un site (ordinateurs + peripheriques + telephones)
+/* Compte le nbre de mat??riels d'un site (ordinateurs + peripheriques + telephones)
   param : id du site
 */
 CREATE OR REPLACE FUNCTION f_nb_materiel_site(
@@ -43,10 +44,11 @@ BEGIN
     FROM telephones WHERE site_id = p_site_id AND est_supprime = 0;
   RETURN v_nb_ordi + v_nb_periph + v_nb_tel;
 END;
+/
 
 
 
-/* Récupère le nom d'un site.
+/* R??cup??re le nom d'un site.
   param : id du site
 */
 CREATE OR REPLACE FUNCTION f_nom_site(
@@ -60,11 +62,12 @@ BEGIN
 EXCEPTION
   WHEN NO_DATA_FOUND THEN RETURN NULL;
 END;
+/
 
 
 
 /* Taux d'utilisation des ordinateurs d'un site
-  On retourne un pourcentage du nbre d'ordinateurs assignés.
+  On retourne un pourcentage du nbre d'ordinateurs assign??s.
 */
 CREATE OR REPLACE FUNCTION f_taux_utilisation_site(
   p_site_id IN NUMBER
@@ -80,6 +83,7 @@ BEGIN
   IF v_total = 0 THEN RETURN 0; END IF;
   RETURN ROUND((v_assigne / v_total) * 100, 2);
 END;
+/
 
 
 /*
@@ -100,6 +104,7 @@ BEGIN
      AND date_achat IS NOT NULL;
   RETURN v_age;
 END;
+/
 
 
 
@@ -120,10 +125,11 @@ BEGIN
 EXCEPTION
   WHEN NO_DATA_FOUND THEN RETURN FALSE;
 END;
+/
 
 
 
-/* Compte le nbre de logiciels installés sur un ordinateur
+/* Compte le nbre de logiciels install??s sur un ordinateur
   param : id ordinateur
   retourne un entier.
 */
@@ -138,10 +144,11 @@ BEGIN
    WHERE ordinateur_id = p_ordi_id;
   RETURN v_count;
 END;
+/
 
 
 
-/* Donne l'âge d'un materiel (en jours) depuis l'achat.
+/* Donne l'??ge d'un materiel (en jours) depuis l'achat.
   param : id ordinateur
   retourne un entier.
 */
@@ -160,9 +167,10 @@ BEGIN
 EXCEPTION
   WHEN NO_DATA_FOUND THEN RETURN NULL;
 END;
+/
 
 
-/* Compte le nbre de ports actifs d'un equipement réseau.
+/* Compte le nbre de ports actifs d'un equipement r??seau.
   param : id equipement
   retourne un entier.
 */
@@ -177,6 +185,7 @@ BEGIN
   WHERE equipement_id = p_equip_id AND est_actif = 1;
   RETURN v_count;
 END;
+/
 
 
 
@@ -198,18 +207,19 @@ BEGIN
 EXCEPTION
   WHEN NO_DATA_FOUND THEN RETURN -1;
 END;
+/
 
 
 
--- ----- Nom complet hierarchique d'une entite (CONNECT BY + LISTAGG) ---------
+-- ----- Nom complet hierarchique d'un hierarchy_level (CONNECT BY + LISTAGG) ---
 -- Reconstruit "Racine > Niveau1 > Niveau2 > ..." en remontant les parents.
-CREATE OR REPLACE FUNCTION f_nom_complet_entite(
-  p_entite_id IN NUMBER
+CREATE OR REPLACE FUNCTION f_nom_complet_hierarchy_level(
+  p_hierarchy_level_id IN NUMBER
 ) RETURN VARCHAR2
 IS
   v_chemin VARCHAR2(500);
 BEGIN
-  -- CONNECT BY parcourt l'arbre de l'entite vers la racine.
+  -- CONNECT BY parcourt l'arbre vers la racine.
   -- LISTAGG concatene les noms separes par " > " dans l'ordre racine -> feuille
   -- (donc ORDER BY LEVEL DESC, car LEVEL=1 est le noeud cible, LEVEL=max=racine).
   SELECT LISTAGG(nom, ' > ') WITHIN GROUP (ORDER BY niveau DESC)
@@ -217,10 +227,11 @@ BEGIN
     FROM (
       SELECT nom, LEVEL AS niveau
       FROM hierarchy_level
-      START WITH id = p_entite_id
-      CONNECT BY PRIOR entite_parent_id = id
+      START WITH id = p_hierarchy_level_id
+      CONNECT BY PRIOR hierarchy_level_parent_id = id
     );
   RETURN v_chemin;
 EXCEPTION
   WHEN NO_DATA_FOUND THEN RETURN NULL;
 END;
+/

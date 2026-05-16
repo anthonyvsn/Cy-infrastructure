@@ -1,27 +1,27 @@
 /*
-    Ce fichier contient des procédures de gestion (standalone)
-    Ce sont des opérations appelees ponctuellement, pas assez liees a un domaine pour justifier un package dedie.
+    Ce fichier contient des proc??dures de gestion (standalone)
+    Ce sont des op??rations appelees ponctuellement, pas assez liees a un domaine pour justifier un package dedie.
 */
 
 /*
-    Ajoute un ordinateur (avec vérifications préalables).
+    Ajoute un ordinateur (avec v??rifications pr??alables).
 */
 CREATE OR REPLACE PROCEDURE p_ajouter_ordinateur(
-  p_nom              IN VARCHAR2,
-  p_numero_serie     IN VARCHAR2 DEFAULT NULL,
-  p_numero_inventaire IN VARCHAR2 DEFAULT NULL,
-  p_entite_id        IN NUMBER,
-  p_localisation_id  IN NUMBER DEFAULT NULL,
-  p_type_ordi_id     IN NUMBER DEFAULT NULL,
-  p_modele_id        IN NUMBER DEFAULT NULL,
-  p_fabricant_id     IN NUMBER DEFAULT NULL,
-  p_etat_id          IN NUMBER DEFAULT NULL,
-  p_utilisateur_id   IN NUMBER DEFAULT NULL,
-  p_site_id          IN NUMBER,
-  p_date_achat       IN DATE DEFAULT NULL,
-  p_id_out           OUT NUMBER
+  p_nom                IN VARCHAR2,
+  p_numero_serie       IN VARCHAR2 DEFAULT NULL,
+  p_numero_inventaire  IN VARCHAR2 DEFAULT NULL,
+  p_hierarchy_level_id IN NUMBER,
+  p_localisation_id    IN NUMBER DEFAULT NULL,
+  p_type_ordi_id       IN NUMBER DEFAULT NULL,
+  p_modele_id          IN NUMBER DEFAULT NULL,
+  p_fabricant_id       IN NUMBER DEFAULT NULL,
+  p_etat_id            IN NUMBER DEFAULT NULL,
+  p_utilisateur_id     IN NUMBER DEFAULT NULL,
+  p_site_id            IN NUMBER,
+  p_date_achat         IN DATE DEFAULT NULL,
+  p_id_out             OUT NUMBER
 ) IS
-  v_site_entite NUMBER;
+  v_site_hl     NUMBER;
   v_count_serie NUMBER;
 
   -- Exceptions nommees liees aux codes -20xxx
@@ -30,20 +30,20 @@ CREATE OR REPLACE PROCEDURE p_ajouter_ordinateur(
   e_serie_doublon    EXCEPTION;
   PRAGMA EXCEPTION_INIT(e_serie_doublon, -20150);
 BEGIN
-  -- 1) Verifier que l'entite existe et recuperer son site
+  -- 1) Verifier que le hierarchy_level existe et recuperer son site
   BEGIN
-    SELECT site_id INTO v_site_entite
-      FROM hierarchy_level WHERE id = p_entite_id;
+    SELECT site_id INTO v_site_hl
+      FROM hierarchy_level WHERE id = p_hierarchy_level_id;
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR(-20102,
-        'L entite ' || p_entite_id || ' n existe pas.');
+        'Le hierarchy_level ' || p_hierarchy_level_id || ' n existe pas.');
   END;
 
-  -- 2) Verifier la coherence site/entite
-  IF v_site_entite != p_site_id THEN
+  -- 2) Verifier la coherence site/hierarchy_level
+  IF v_site_hl != p_site_id THEN
     RAISE_APPLICATION_ERROR(-20101,
-      'Site incoherent : entite sur site ' || v_site_entite
+      'Site incoherent : hierarchy_level sur site ' || v_site_hl
       || ', ordinateur sur site ' || p_site_id);
   END IF;
 
@@ -62,12 +62,12 @@ BEGIN
   p_id_out := seq_ordinateurs.NEXTVAL;
   INSERT INTO ordinateurs (
     id, nom, numero_serie, numero_inventaire,
-    entite_id, localisation_id, type_ordinateur_id,
+    hierarchy_level_id, localisation_id, type_ordinateur_id,
     modele_id, fabricant_id, etat_id, utilisateur_id,
     site_id, date_achat, date_creation, date_modification
   ) VALUES (
     p_id_out, p_nom, p_numero_serie, p_numero_inventaire,
-    p_entite_id, p_localisation_id, p_type_ordi_id,
+    p_hierarchy_level_id, p_localisation_id, p_type_ordi_id,
     p_modele_id, p_fabricant_id, p_etat_id, p_utilisateur_id,
     p_site_id, p_date_achat, SYSDATE, SYSDATE
   );
@@ -80,19 +80,20 @@ EXCEPTION
     DBMS_OUTPUT.PUT_LINE('Erreur : ' || SQLCODE || ' - ' || SQLERRM);
     RAISE;
 END;
+/
 
 
 
 -- ----- Transferer un ordinateur d'un site a un autre ------------------------
 CREATE OR REPLACE PROCEDURE p_transferer_ordinateur(
-  p_ordi_id         IN NUMBER,
-  p_nouveau_site_id IN NUMBER,
-  p_nouvelle_entite IN NUMBER,
-  p_nouvelle_loc    IN NUMBER DEFAULT NULL
+  p_ordi_id                    IN NUMBER,
+  p_nouveau_site_id            IN NUMBER,
+  p_nouveau_hierarchy_level_id IN NUMBER,
+  p_nouvelle_loc               IN NUMBER DEFAULT NULL
 ) IS
   v_ancien_site NUMBER;
   v_nom_ordi    VARCHAR2(255);
-  v_site_entite NUMBER;
+  v_site_hl     NUMBER;
 BEGIN
   -- Verifier l'ordinateur
   BEGIN
@@ -105,21 +106,21 @@ BEGIN
         'Ordinateur id=' || p_ordi_id || ' introuvable ou supprime.');
   END;
 
-  -- Verifier coherence nouvelle entite / nouveau site
-  SELECT site_id INTO v_site_entite
-    FROM hierarchy_level WHERE id = p_nouvelle_entite;
-  IF v_site_entite != p_nouveau_site_id THEN
+  -- Verifier coherence nouveau hierarchy_level / nouveau site
+  SELECT site_id INTO v_site_hl
+    FROM hierarchy_level WHERE id = p_nouveau_hierarchy_level_id;
+  IF v_site_hl != p_nouveau_site_id THEN
     RAISE_APPLICATION_ERROR(-20202,
-      'L entite ' || p_nouvelle_entite || ' n appartient pas au site '
-      || p_nouveau_site_id);
+      'Le hierarchy_level ' || p_nouveau_hierarchy_level_id
+      || ' n appartient pas au site ' || p_nouveau_site_id);
   END IF;
 
   -- Effectuer le transfert (desaffectation utilisateur)
   UPDATE ordinateurs
-     SET site_id         = p_nouveau_site_id,
-         entite_id       = p_nouvelle_entite,
-         localisation_id = p_nouvelle_loc,
-         utilisateur_id  = NULL
+     SET site_id            = p_nouveau_site_id,
+         hierarchy_level_id = p_nouveau_hierarchy_level_id,
+         localisation_id    = p_nouvelle_loc,
+         utilisateur_id     = NULL
    WHERE id = p_ordi_id;
 
   COMMIT;
@@ -131,6 +132,7 @@ EXCEPTION
     DBMS_OUTPUT.PUT_LINE('Erreur transfert : ' || SQLCODE || ' - ' || SQLERRM);
     RAISE;
 END;
+/
 
 
 
@@ -192,6 +194,7 @@ EXCEPTION
     DBMS_OUTPUT.PUT_LINE('Erreur desactivation : ' || SQLCODE || ' - ' || SQLERRM);
     RAISE;
 END;
+/
 
 
 
@@ -254,11 +257,12 @@ EXCEPTION
     DBMS_OUTPUT.PUT_LINE('Erreur installation : ' || SQLCODE || ' - ' || SQLERRM);
     RAISE;
 END;
+/
 
 
 
 /*
-    Assure la suppression du matériel
+    Assure la suppression du mat??riel
 */
 CREATE OR REPLACE PROCEDURE p_supprimer_materiel(
   p_type_materiel IN VARCHAR2,
@@ -298,3 +302,4 @@ EXCEPTION
     DBMS_OUTPUT.PUT_LINE('Erreur suppression : ' || SQLCODE || ' - ' || SQLERRM);
     RAISE;
 END;
+/

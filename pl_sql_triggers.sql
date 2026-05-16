@@ -25,6 +25,7 @@ BEGIN
     :NEW.id := seq_sites.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_hierarchy_level
@@ -35,6 +36,7 @@ BEGIN
     :NEW.id := seq_hierarchy_level.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_localisations
@@ -45,6 +47,7 @@ BEGIN
     :NEW.id := seq_localisations.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_utilisateurs
@@ -55,6 +58,7 @@ BEGIN
     :NEW.id := seq_utilisateurs.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_ordinateurs
@@ -65,6 +69,7 @@ BEGIN
     :NEW.id := seq_ordinateurs.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_peripheriques
@@ -75,6 +80,7 @@ BEGIN
     :NEW.id := seq_peripheriques.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_telephones
@@ -85,6 +91,7 @@ BEGIN
     :NEW.id := seq_telephones.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_equip_reseau
@@ -95,6 +102,7 @@ BEGIN
     :NEW.id := seq_equip_reseau.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_ports_reseau
@@ -105,6 +113,7 @@ BEGIN
     :NEW.id := seq_ports_reseau.NEXTVAL;
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_pk_historique
@@ -115,6 +124,7 @@ BEGIN
     :NEW.id := seq_historique.NEXTVAL;
   END IF;
 END;
+/
 
 
 
@@ -129,6 +139,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_hierarchy_level
@@ -137,6 +148,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_localisations
@@ -145,9 +157,10 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
-/* trg_majdate_profils est supprimé. */
+/* trg_majdate_profils est supprim??. */
 
 CREATE OR REPLACE TRIGGER trg_majdate_groupes
 BEFORE UPDATE ON groupes
@@ -155,6 +168,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_utilisateurs
@@ -163,6 +177,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_ordinateurs
@@ -171,6 +186,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_peripheriques
@@ -179,6 +195,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_telephones
@@ -187,6 +204,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_logiciels
@@ -195,6 +213,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_equip_reseau
@@ -203,6 +222,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_majdate_ports_reseau
@@ -211,6 +231,7 @@ FOR EACH ROW
 BEGIN
   :NEW.date_modification := SYSDATE;
 END;
+/
 
 
 
@@ -232,7 +253,7 @@ END;
 -- ----- Procedure utilitaire (factorisation des INSERT historique) -----------
 /*
  Ensemble des triggers d'ajout d'informations dans la table historique.
- Ces triggers font tous appel à la procedure log_change.
+ Ces triggers font tous appel ?? la procedure log_change.
 */
 CREATE OR REPLACE PROCEDURE log_change(
   p_type_objet   VARCHAR2,
@@ -250,6 +271,7 @@ BEGIN
     p_action, SYSDATE
   );
 END;
+/
 
 
 
@@ -288,6 +310,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -318,6 +341,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -344,6 +368,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -381,6 +406,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -411,6 +437,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -433,6 +460,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -472,6 +500,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -479,7 +508,7 @@ END;
 -- TRIGGERS DE VALIDATION SITE / ENTITE
 -- =============================================================================
 -- Un materiel dans une hierarchy_level doit etre du meme site que cette hierarchy_level.
--- On se prémunit des saisies incoherentes.
+-- On se pr??munit des saisies incoherentes.
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_ordi
 BEFORE INSERT OR UPDATE ON ordinateurs
@@ -499,6 +528,7 @@ EXCEPTION
     RAISE_APPLICATION_ERROR(-20102,
       'Entite ' || :NEW.hierarchy_level_id || ' introuvable.');
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_periph
@@ -515,6 +545,7 @@ BEGIN
       || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_tel
@@ -531,6 +562,7 @@ BEGIN
       || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_equip
@@ -547,6 +579,7 @@ BEGIN
       || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
+/
 
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_user
@@ -566,6 +599,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -588,6 +622,7 @@ BEGIN
     RAISE_APPLICATION_ERROR(-20110, 'Adresse MAC invalide : "' || :NEW.adresse_mac || '" (attendu XX:XX:XX:XX:XX:XX).');
   END IF;
 END;
+/
 
 
 
@@ -604,6 +639,7 @@ BEGIN
       'date_fin (' || TO_CHAR(:NEW.date_fin,'YYYY-MM-DD') || ') anterieure a date_debut (' || TO_CHAR(:NEW.date_debut,'YYYY-MM-DD') || ').');
   END IF;
 END;
+/
 
 
 
@@ -618,6 +654,7 @@ BEGIN
       'Une hierarchy_level ne peut pas etre son propre parent.');
   END IF;
 END;
+/
 
 
 
@@ -637,6 +674,7 @@ BEGIN
       || 'Desinstallez-les d abord.');
   END IF;
 END;
+/
 
 
 
@@ -656,6 +694,7 @@ BEGIN
       || 'Desactivez-les d abord.');
   END IF;
 END;
+/
 
 
 
@@ -676,6 +715,7 @@ BEGIN
     END IF;
   END IF;
 END;
+/
 
 
 
@@ -707,3 +747,4 @@ BEGIN
       'Site inconnu (site_id=' || :NEW.site_id || '). Valeurs attendues : 1 (Cergy) ou 2 (Pau).');
   END IF;
 END;
+/

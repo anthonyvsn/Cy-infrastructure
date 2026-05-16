@@ -3,12 +3,12 @@
 -- =============================================================================
 -- A executer en tant que ADMIN_CYTECH, APRES :
 --   1) bdd_Cy_infrastructure.sql
---   2) corrections_sql.sql (pour ordinateurs_cl, peripheriques_cl)
+--   2) pl_sql_triggers.sql + pl_sql_functions.sql + pl_sql_procedures.sql
+--      + pl_sql_packages.sql
 --   3) jeu_de_test.sql (volume representatif)
---   4) sync_tables_cluster (pour copier les donnees dans les tables _cl)
 --
 -- Objectif : mesurer et comparer les performances pour justifier les choix
--- d'indexation, de cluster et de BDDR dans le rapport.
+-- d'indexation et de BDDR dans le rapport.
 --
 -- Methodologie :
 --   * EXPLAIN PLAN : montre le plan choisi par l'optimiseur (FULL SCAN,
@@ -21,9 +21,9 @@
 --   1. Avec / sans index sur ordinateurs.site_id
 --   2. Avec / sans index fonctionnel sur UPPER(login)
 --   3. Avec / sans index bitmap sur est_supprime
---   4. Cluster (ordinateurs_cl) vs heap (ordinateurs) pour SELECT par localisation
---   5. Vue materialisee (mv_stats_parc) vs agregation live
---   6. Local vs distant (parc global via db_pau)
+--   4. Vue materialisee (mv_stats_parc) vs agregation live
+--   5. Local vs distant (parc global via db_pau)
+--   6. Impact global des indexes B-TREE sur ordinateurs
 --
 -- Resultats attendus a coller dans le rapport, idealement sous forme de
 -- graphique a barres.
@@ -38,14 +38,9 @@ ALTER SESSION SET STATISTICS_LEVEL = 'ALL';
 
 -- Verification des prerequis
 PROMPT ===== Verifications prerequis =====
-SELECT COUNT(*) AS nb_ordis     FROM ordinateurs;
-SELECT COUNT(*) AS nb_ordis_cl  FROM ordinateurs_cl;
-SELECT COUNT(*) AS nb_periph    FROM peripheriques;
-SELECT COUNT(*) AS nb_users     FROM utilisateurs;
-
-PROMPT
-PROMPT ===== Synchronisation des tables clusterisees =====
-EXEC sync_tables_cluster;
+SELECT COUNT(*) AS nb_ordis   FROM ordinateurs;
+SELECT COUNT(*) AS nb_periph  FROM peripheriques;
+SELECT COUNT(*) AS nb_users   FROM utilisateurs;
 
 
 
@@ -198,56 +193,18 @@ CREATE BITMAP INDEX idx_bmp_ordi_supprime ON ordinateurs(est_supprime) TABLESPAC
 
 
 
--- =============================================================================
--- TEST 4 : CLUSTER vs HEAP
--- =============================================================================
--- Requete : "tous les ordis et peripheriques d'une meme localisation".
--- Cluster co-localise physiquement les lignes ordi + periph partageant
--- localisation_id -> moins de blocs lus.
--- Heap (table standard) : les lignes sont eparpillees -> plus d'IO.
-
-PROMPT
-PROMPT ========== TEST 4 : SELECT par localisation -- cluster vs heap ==========
-
--- 4.a) AVEC cluster (ordinateurs_cl + peripheriques_cl)
-EXPLAIN PLAN FOR
-  SELECT o.id, o.nom, p.id AS periph_id, p.nom AS periph_nom
-    FROM ordinateurs_cl o
-    LEFT JOIN peripheriques_cl p ON p.localisation_id = o.localisation_id
-   WHERE o.localisation_id = 10;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
-
-BEGIN bench_query('AVEC cluster',
-  'SELECT o.id, o.nom, p.id, p.nom FROM ordinateurs_cl o LEFT JOIN peripheriques_cl p ON p.localisation_id = o.localisation_id WHERE o.localisation_id = 10'); END;
-/
-
--- 4.b) SANS cluster (tables heap classiques)
-EXPLAIN PLAN FOR
-  SELECT o.id, o.nom, p.id AS periph_id, p.nom AS periph_nom
-    FROM ordinateurs o
-    LEFT JOIN peripheriques p ON p.localisation_id = o.localisation_id
-   WHERE o.localisation_id = 10;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
-
-BEGIN bench_query('SANS cluster',
-  'SELECT o.id, o.nom, p.id, p.nom FROM ordinateurs o LEFT JOIN peripheriques p ON p.localisation_id = o.localisation_id WHERE o.localisation_id = 10'); END;
-/
-
-
-
-
 
 -- =============================================================================
--- TEST 5 : VUE MATERIALISEE vs AGREGATION LIVE
+-- TEST 4 : VUE MATERIALISEE vs AGREGATION LIVE
 -- =============================================================================
 -- mv_stats_parc precompute COUNT(*) GROUP BY (site, etat).
 -- Acces direct a la MV : trivial.
 -- Agregation live : doit scanner ordinateurs et faire le GROUP BY.
 
 PROMPT
-PROMPT ========== TEST 5 : stats parc -- MV vs requete live ==========
+PROMPT ========== TEST 4 : stats parc -- MV vs requete live ==========
 
--- 5.a) Via la MV
+-- 4.a) Via la MV
 EXPLAIN PLAN FOR
   SELECT * FROM mv_stats_parc;
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
@@ -256,7 +213,7 @@ BEGIN bench_query('MV mv_stats_parc',
   'SELECT site, etat, nb_ordinateurs FROM mv_stats_parc'); END;
 /
 
--- 5.b) Live (recalcul a la volee)
+-- 4.b) Live (recalcul a la volee)
 EXPLAIN PLAN FOR
   SELECT s.nom AS site, e.nom AS etat, COUNT(*) AS nb_ordinateurs
     FROM ordinateurs o
@@ -275,14 +232,14 @@ BEGIN bench_query('Aggregation live',
 
 
 -- =============================================================================
--- TEST 6 : ACCES LOCAL vs DISTANT (db link)
+-- TEST 5 : ACCES LOCAL vs DISTANT (db link)
 -- =============================================================================
 -- Compare le cout d'un SELECT local vs un SELECT via db_pau@.
 -- NE FONCTIONNE QUE SI le serveur Pau est joignable.
 -- Si ORA-12154, commenter ce bloc.
 
 PROMPT
-PROMPT ========== TEST 6 : SELECT local vs SELECT distant ==========
+PROMPT ========== TEST 5 : SELECT local vs SELECT distant ==========
 
 BEGIN
   bench_query('Local : ordinateurs Cergy',
@@ -304,14 +261,14 @@ END;
 
 
 -- =============================================================================
--- TEST 7 : RECAPITULATIF -- impact des indexes (drop tous puis recreer)
+-- TEST 6 : RECAPITULATIF -- impact des indexes (drop tous puis recreer)
 -- =============================================================================
 -- Test global : on mesure une requete complexe (vue_parc_cergy) avec et sans
 -- les indexes b-tree principaux.
 -- Attention : long si on rebuild tous les indexes. A executer en dernier.
 
 PROMPT
-PROMPT ========== TEST 7 : impact global indexes sur vue_parc_cergy ==========
+PROMPT ========== TEST 6 : impact global indexes sur vue_parc_cergy ==========
 
 BEGIN
   bench_query('Vue parc Cergy -- AVEC indexes',
@@ -339,15 +296,15 @@ END;
 
 -- Recreation des indexes principaux
 PROMPT ----- Recreation indexes -----
-CREATE INDEX idx_ordi_entite ON ordinateurs(entite_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_localisation ON ordinateurs(localisation_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_utilisateur ON ordinateurs(utilisateur_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_fabricant ON ordinateurs(fabricant_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_etat ON ordinateurs(etat_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_site ON ordinateurs(site_id) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_nom ON ordinateurs(nom) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_serie ON ordinateurs(numero_serie) TABLESPACE TS_INDEX;
-CREATE INDEX idx_ordi_nom_upper ON ordinateurs(UPPER(nom)) TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_hierarchy_level ON ordinateurs(hierarchy_level_id) TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_localisation    ON ordinateurs(localisation_id)    TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_utilisateur     ON ordinateurs(utilisateur_id)     TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_fabricant       ON ordinateurs(fabricant_id)       TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_etat            ON ordinateurs(etat_id)            TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_site            ON ordinateurs(site_id)            TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_nom             ON ordinateurs(nom)                TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_serie           ON ordinateurs(numero_serie)       TABLESPACE TS_INDEX;
+CREATE INDEX idx_ordi_nom_upper       ON ordinateurs(UPPER(nom))         TABLESPACE TS_INDEX;
 
 
 
@@ -364,7 +321,6 @@ CREATE INDEX idx_ordi_nom_upper ON ordinateurs(UPPER(nom)) TABLESPACE TS_INDEX;
 --   Site_id (index b-tree)                  | ~xx ms    | ~yy ms    | x N
 --   UPPER(login) (index fonctionnel)        | ~xx ms    | ~yy ms    | x N
 --   est_supprime (bitmap)                   | ~xx ms    | ~yy ms    | x N
---   localisation_id (cluster)               | ~xx ms    | ~yy ms    | x N
 --   stats parc (MV)                         | ~xx ms    | ~yy ms    | x N
 --   SELECT local vs distant                 | local xx  | dist  yy  | x N
 --   vue_parc_cergy (impact global indexes)  | ~xx ms    | ~yy ms    | x N

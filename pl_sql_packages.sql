@@ -66,6 +66,7 @@ CREATE OR REPLACE PACKAGE pkg_parc_info AS
   PROCEDURE marquer_obsoletes(p_annees IN NUMBER DEFAULT 7);
 
 END pkg_parc_info;
+/
 
 
 
@@ -386,6 +387,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_parc_info AS
   END marquer_obsoletes;
 
 END pkg_parc_info;
+/
 
 
 
@@ -404,6 +406,7 @@ CREATE OR REPLACE PACKAGE pkg_stats AS
   PROCEDURE rapport_activite_recente(p_nb_jours IN NUMBER DEFAULT 30);
   PROCEDURE rapport_utilisateurs_sans_materiel(p_site_id IN NUMBER);
 END pkg_stats;
+/
 
 
 
@@ -590,6 +593,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_stats AS
   END rapport_utilisateurs_sans_materiel;
 
 END pkg_stats;
+/
 
 
 
@@ -603,22 +607,23 @@ CREATE OR REPLACE PACKAGE pkg_reseau AS
   FUNCTION taux_occupation_ports(p_equip_id IN NUMBER) RETURN NUMBER;
 
   PROCEDURE ajouter_equipement_reseau(
-    p_nom             IN VARCHAR2,
-    p_numero_serie    IN VARCHAR2 DEFAULT NULL,
-    p_entite_id       IN NUMBER,
-    p_localisation_id IN NUMBER DEFAULT NULL,
-    p_type_equip_id   IN NUMBER DEFAULT NULL,
-    p_fabricant_id    IN NUMBER DEFAULT NULL,
-    p_etat_id         IN NUMBER DEFAULT NULL,
-    p_site_id         IN NUMBER,
-    p_nb_ports        IN NUMBER DEFAULT 0,
-    p_id_out          OUT NUMBER
+    p_nom                IN VARCHAR2,
+    p_numero_serie       IN VARCHAR2 DEFAULT NULL,
+    p_hierarchy_level_id IN NUMBER,
+    p_localisation_id    IN NUMBER DEFAULT NULL,
+    p_type_equip_id      IN NUMBER DEFAULT NULL,
+    p_fabricant_id       IN NUMBER DEFAULT NULL,
+    p_etat_id            IN NUMBER DEFAULT NULL,
+    p_site_id            IN NUMBER,
+    p_nb_ports           IN NUMBER DEFAULT 0,
+    p_id_out             OUT NUMBER
   );
   PROCEDURE creer_ports_equipement(p_equip_id IN NUMBER, p_nb_ports IN NUMBER);
   PROCEDURE activer_port(p_port_id IN NUMBER);
   PROCEDURE desactiver_port(p_port_id IN NUMBER);
   PROCEDURE rapport_reseau_site(p_site_id IN NUMBER);
 END pkg_reseau;
+/
 
 
 
@@ -641,32 +646,32 @@ CREATE OR REPLACE PACKAGE BODY pkg_reseau AS
 
 
   PROCEDURE ajouter_equipement_reseau(
-    p_nom             IN VARCHAR2,
-    p_numero_serie    IN VARCHAR2 DEFAULT NULL,
-    p_entite_id       IN NUMBER,
-    p_localisation_id IN NUMBER DEFAULT NULL,
-    p_type_equip_id   IN NUMBER DEFAULT NULL,
-    p_fabricant_id    IN NUMBER DEFAULT NULL,
-    p_etat_id         IN NUMBER DEFAULT NULL,
-    p_site_id         IN NUMBER,
-    p_nb_ports        IN NUMBER DEFAULT 0,
-    p_id_out          OUT NUMBER
+    p_nom                IN VARCHAR2,
+    p_numero_serie       IN VARCHAR2 DEFAULT NULL,
+    p_hierarchy_level_id IN NUMBER,
+    p_localisation_id    IN NUMBER DEFAULT NULL,
+    p_type_equip_id      IN NUMBER DEFAULT NULL,
+    p_fabricant_id       IN NUMBER DEFAULT NULL,
+    p_etat_id            IN NUMBER DEFAULT NULL,
+    p_site_id            IN NUMBER,
+    p_nb_ports           IN NUMBER DEFAULT 0,
+    p_id_out             OUT NUMBER
   ) IS
-    v_site_entite NUMBER;
+    v_site_hl NUMBER;
   BEGIN
-    SELECT site_id INTO v_site_entite FROM hierarchy_level WHERE id = p_entite_id;
-    IF v_site_entite != p_site_id THEN
+    SELECT site_id INTO v_site_hl FROM hierarchy_level WHERE id = p_hierarchy_level_id;
+    IF v_site_hl != p_site_id THEN
       RAISE_APPLICATION_ERROR(-20701,
         'Site incoherent pour l equipement reseau.');
     END IF;
 
     p_id_out := seq_equip_reseau.NEXTVAL;
     INSERT INTO equipements_reseau (
-      id, nom, numero_serie, entite_id, localisation_id,
+      id, nom, numero_serie, hierarchy_level_id, localisation_id,
       type_equip_id, fabricant_id, etat_id, site_id, nb_ports,
       date_creation, date_modification
     ) VALUES (
-      p_id_out, p_nom, p_numero_serie, p_entite_id, p_localisation_id,
+      p_id_out, p_nom, p_numero_serie, p_hierarchy_level_id, p_localisation_id,
       p_type_equip_id, p_fabricant_id, p_etat_id, p_site_id, p_nb_ports,
       SYSDATE, SYSDATE
     );
@@ -784,6 +789,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_reseau AS
   END rapport_reseau_site;
 
 END pkg_reseau;
+/
 
 
 
@@ -819,7 +825,7 @@ CREATE OR REPLACE PACKAGE pkg_maintenance AS
   -- toujours traite avant le fils.
   PROCEDURE recalculer_nom_complet_hierarchy_level;
 
-  -- Transfert d'un ordinateur entre sites (site_id, entite_id, localisation).
+  -- Transfert d'un ordinateur entre sites (site_id, hierarchy_level_id, localisation).
   -- Demonstration du %ROWTYPE.
   PROCEDURE transferer_materiel(
     p_ordi_id           IN NUMBER,
@@ -832,6 +838,7 @@ CREATE OR REPLACE PACKAGE pkg_maintenance AS
   PROCEDURE archiver_utilisateur(p_user_id IN NUMBER);
 
 END pkg_maintenance;
+/
 
 
 
@@ -906,18 +913,18 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
   PROCEDURE recalculer_nom_complet_hierarchy_level IS
     -- Curseur trie par niveau croissant : on traite parents AVANT enfants.
     CURSOR c_hierarchy_level IS
-      SELECT id, nom, entite_parent_id, niveau
+      SELECT id, nom, hierarchy_level_parent_id, niveau
         FROM hierarchy_level
        ORDER BY niveau ASC, id ASC;
     v_nb     NUMBER := 0;
     v_chemin VARCHAR2(500);
   BEGIN
     FOR e IN c_hierarchy_level LOOP
-      IF e.entite_parent_id IS NULL THEN
+      IF e.hierarchy_level_parent_id IS NULL THEN
         v_chemin := e.nom;
       ELSE
         SELECT nom_complet INTO v_chemin
-          FROM hierarchy_level WHERE id = e.entite_parent_id;
+          FROM hierarchy_level WHERE id = e.hierarchy_level_parent_id;
         v_chemin := v_chemin || ' > ' || e.nom;
       END IF;
       UPDATE hierarchy_level SET nom_complet = v_chemin WHERE id = e.id;
@@ -943,9 +950,9 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
     SELECT * INTO v_ordi FROM ordinateurs WHERE id = p_ordi_id;
 
     -- 2) Verifie que la nouvelle localisation est dans le nouveau site
-    SELECT e.site_id INTO v_site_loc
+    SELECT h.site_id INTO v_site_loc
       FROM localisations l
-      JOIN hierarchy_level e ON e.id = l.entite_id
+      JOIN hierarchy_level h ON h.id = l.hierarchy_level_id
      WHERE l.id = p_nouvelle_loc_id;
 
     IF v_site_loc <> p_nouveau_site_id THEN
@@ -954,21 +961,21 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
         || ' n appartient pas au site ' || p_nouveau_site_id || '.');
     END IF;
 
-    -- 3) Affecte a l'entite racine du nouveau site (coherence avec le trigger)
+    -- 3) Affecte au hierarchy_level racine du nouveau site (coherence avec le trigger)
     DECLARE
-      v_entite_racine NUMBER;
+      v_hl_racine NUMBER;
     BEGIN
-      SELECT id INTO v_entite_racine
+      SELECT id INTO v_hl_racine
         FROM hierarchy_level
        WHERE site_id = p_nouveau_site_id
          AND niveau = 1
          AND ROWNUM = 1;
 
       UPDATE ordinateurs
-         SET site_id         = p_nouveau_site_id,
-             localisation_id = p_nouvelle_loc_id,
-             entite_id       = v_entite_racine,
-             utilisateur_id  = NULL  -- desaffecte (a reaffecter)
+         SET site_id            = p_nouveau_site_id,
+             localisation_id    = p_nouvelle_loc_id,
+             hierarchy_level_id = v_hl_racine,
+             utilisateur_id     = NULL  -- desaffecte (a reaffecter)
        WHERE id = p_ordi_id;
     END;
 
@@ -1022,6 +1029,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_maintenance AS
   END archiver_utilisateur;
 
 END pkg_maintenance;
+/
 
 
 
@@ -1035,7 +1043,8 @@ GRANT EXECUTE ON pkg_parc_info   TO TECH_CERGY;
 GRANT EXECUTE ON pkg_parc_info   TO TECH_PAU;
 GRANT EXECUTE ON pkg_stats       TO TECH_CERGY;
 GRANT EXECUTE ON pkg_stats       TO TECH_PAU;
-GRANT EXECUTE ON pkg_stats       TO USER_RO;     -- lecture seule, stats OK
+-- pkg_stats : USER_RO peut consulter les stats (lecture seule)
+GRANT EXECUTE ON pkg_stats       TO USER_RO;
 GRANT EXECUTE ON pkg_reseau      TO TECH_CERGY;
 GRANT EXECUTE ON pkg_reseau      TO TECH_PAU;
 GRANT EXECUTE ON pkg_maintenance TO TECH_CERGY;
@@ -1056,13 +1065,14 @@ SELECT f_taux_utilisation_site(1) FROM dual;         -- % utilisation Cergy
 SELECT f_age_moyen_parc(1) FROM dual;                -- age moyen parc Cergy
 SELECT f_nb_logiciels_ordinateur(42) FROM dual;      -- logiciels sur ordi 42
 SELECT f_age_materiel_jours(10) FROM dual;           -- age en jours
-SELECT f_nom_complet_entite(4) FROM dual;            -- "Cergy > IT > Reseau"
+SELECT f_nom_complet_hierarchy_level(4) FROM dual;   -- "Cergy > IT > Reseau"
 
 -- ----- Procedures standalone -----
 DECLARE v_id NUMBER;
 BEGIN p_ajouter_ordinateur('PC-CERGY-201', 'SN123', 'INV001',
                             3, 5, 1, 1, 1, 1, NULL, 1, SYSDATE, v_id);
 END;
+/
 
 EXEC p_transferer_ordinateur(42, 2, 8, 15);          -- transferer ordi vers Pau
 EXEC p_desactiver_utilisateur(10);                   -- desactiver + liberer
@@ -1091,6 +1101,7 @@ DECLARE v_id NUMBER;
 BEGIN pkg_reseau.ajouter_equipement_reseau('SW-CERGY-01', 'SN-SW-01',
                                             3, 5, 1, 1, 1, 1, 24, v_id);
 END;
+/
 
 SELECT pkg_reseau.taux_occupation_ports(1) FROM dual;
 EXEC pkg_reseau.activer_port(5);
