@@ -70,7 +70,7 @@ CREATE USER TECH_CERGY IDENTIFIED BY cergy2026
   DEFAULT TABLESPACE TS_MATERIEL_CERGY
   TEMPORARY TABLESPACE TS_TEMP;
 
-CREATE USER TECH_PAU IDENTIFIED BY cergy2026
+CREATE USER TECH_PAU IDENTIFIED BY pau2026
   DEFAULT TABLESPACE TS_MATERIEL_PAU
   TEMPORARY TABLESPACE TS_TEMP;
 
@@ -408,11 +408,85 @@ CREATE CLUSTER cl_materiel_localisation (localisation_id NUMBER)
 
 CREATE INDEX idx_cluster_materiel_loc ON CLUSTER cl_materiel_localisation;
 
--- Pour utiliser le cluster, recréer les tables avec la clause CLUSTER :
--- CREATE TABLE ordinateurs_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
--- CREATE TABLE peripheriques_cl (...) CLUSTER cl_materiel_localisation(localisation_id);
--- Puis : INSERT INTO ordinateurs_cl SELECT * FROM ordinateurs;
--- DROP TABLE ordinateurs; ALTER TABLE ordinateurs_cl RENAME TO ordinateurs;
+-- Tables jumelles utilisant le cluster (pour les tests de perf : cluster vs heap)
+-- Memes colonnes que ordinateurs / peripheriques mais physiquement regroupees
+-- par localisation_id. Un SELECT WHERE localisation_id = X lit moins de blocs.
+CREATE TABLE ordinateurs_cl (
+  id                  NUMBER PRIMARY KEY,
+  nom                 VARCHAR2(255) NOT NULL,
+  numero_serie        VARCHAR2(255),
+  numero_inventaire   VARCHAR2(255),
+  entite_id           NUMBER NOT NULL REFERENCES entites(id),
+  localisation_id     NUMBER REFERENCES localisations(id),
+  type_ordinateur_id  NUMBER REFERENCES types_ordinateur(id),
+  modele_id           NUMBER REFERENCES modeles_ordinateur(id),
+  fabricant_id        NUMBER REFERENCES fabricants(id),
+  etat_id             NUMBER REFERENCES etats(id),
+  utilisateur_id      NUMBER REFERENCES utilisateurs(id),
+  groupe_id           NUMBER REFERENCES groupes(id),
+  technicien_id       NUMBER REFERENCES utilisateurs(id),
+  site_id             NUMBER NOT NULL REFERENCES sites(id),
+  commentaire         VARCHAR2(255),
+  est_supprime        NUMBER(1) DEFAULT 0,
+  est_template        NUMBER(1) DEFAULT 0,
+  date_achat          DATE,
+  date_creation       DATE DEFAULT SYSDATE,
+  date_modification   DATE DEFAULT SYSDATE
+)
+CLUSTER cl_materiel_localisation (localisation_id);
+
+CREATE TABLE peripheriques_cl (
+  id                NUMBER PRIMARY KEY,
+  nom               VARCHAR2(255) NOT NULL,
+  numero_serie      VARCHAR2(255),
+  type_peripherique VARCHAR2(100) NOT NULL,
+  entite_id         NUMBER NOT NULL REFERENCES entites(id),
+  localisation_id   NUMBER REFERENCES localisations(id),
+  fabricant_id      NUMBER REFERENCES fabricants(id),
+  etat_id           NUMBER REFERENCES etats(id),
+  utilisateur_id    NUMBER REFERENCES utilisateurs(id),
+  site_id           NUMBER NOT NULL REFERENCES sites(id),
+  commentaire       VARCHAR2(255),
+  est_supprime      NUMBER(1) DEFAULT 0,
+  date_creation     DATE DEFAULT SYSDATE,
+  date_modification DATE DEFAULT SYSDATE
+)
+CLUSTER cl_materiel_localisation (localisation_id);
+
+-- Procedure utilitaire pour peupler les tables clustered apres le jeu de test.
+-- A appeler avant de lancer tests_perf.sql.
+CREATE OR REPLACE PROCEDURE sync_tables_cluster IS
+  v_nb_o NUMBER;
+  v_nb_p NUMBER;
+BEGIN
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE ordinateurs_cl';
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE peripheriques_cl';
+
+  INSERT INTO ordinateurs_cl   SELECT * FROM ordinateurs;
+  v_nb_o := SQL%ROWCOUNT;
+
+  INSERT INTO peripheriques_cl SELECT * FROM peripheriques;
+  v_nb_p := SQL%ROWCOUNT;
+
+  COMMIT;
+  DBMS_OUTPUT.PUT_LINE('Copies clusterisees : '
+    || v_nb_o || ' ordis, ' || v_nb_p || ' periph.');
+END;
+/
+
+-- Marqueur d'utilisation de TS_MATERIEL_PAU. Sur l'instance Pau, les vraies
+-- tables materiel y resident ; ici une table factice prouve que le tablespace
+-- est exploitable (et donc que la BDDR multi-instance peut fonctionner).
+CREATE TABLE test_ts_pau_marker (
+  id NUMBER PRIMARY KEY,
+  libelle VARCHAR2(100)
+) TABLESPACE TS_MATERIEL_PAU;
+
+INSERT INTO test_ts_pau_marker(id, libelle)
+VALUES (1, 'Tablespace TS_MATERIEL_PAU utilise -- replique sur XE_PAU');
+
+COMMENT ON TABLE test_ts_pau_marker IS
+  'Marqueur : prouve que TS_MATERIEL_PAU est exploitable. Sur l instance XE_PAU, les vraies tables materiel y resident.';
 
 
 -- INDEX
@@ -556,7 +630,7 @@ GROUP BY s.nom, e.nom;
 
 -- Database Link : Cergy vers Pau
 CREATE DATABASE LINK db_pau
-  CONNECT TO TECH_PAU IDENTIFIED BY cergy2026
+  CONNECT TO TECH_PAU IDENTIFIED BY pau2026
   USING 'XE_PAU';
 
 -- Database Link : Pau vers Cergy (à exécuter depuis Pau)
@@ -570,11 +644,39 @@ CREATE PUBLIC SYNONYM peripheriques_pau FOR peripheriques@db_pau;
 CREATE PUBLIC SYNONYM telephones_pau FOR telephones@db_pau;
 CREATE PUBLIC SYNONYM equipements_reseau_pau FOR equipements_reseau@db_pau;
 
--- Vue de défragmentation : parc global (Cergy + Pau)
+-- Vue de defragmentation : parc global (Cergy + Pau)
+-- Version "production multi-instance" : sert d'union des deux campus via le
+-- DB link. NB : en environnement mono-instance (dev / soutenance), la vue
+-- est creee avec le seul Cergy et un commentaire indique la version BDDR
+-- complete a activer.
 CREATE OR REPLACE VIEW vue_parc_global AS
-SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs
-UNION ALL
-SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs@db_pau;
+SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs;
+-- Version BDDR (a decommenter en environnement multi-instance) :
+-- CREATE OR REPLACE VIEW vue_parc_global AS
+-- SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs
+-- UNION ALL
+-- SELECT id, nom, numero_serie, site_id, entite_id, date_creation FROM ordinateurs@db_pau;
+
+-- Vue enrichie avec jointures sur les referentiels humains.
+-- Permet a USER_RO de consulter en une requete tout le parc avec libelles.
+CREATE OR REPLACE VIEW vue_parc_global_v2 AS
+SELECT 'CERGY' AS source,
+       o.id, o.nom, o.numero_serie, o.numero_inventaire,
+       o.site_id, o.entite_id,
+       f.nom AS fabricant, e.nom AS etat,
+       l.nom AS localisation, l.batiment, l.salle,
+       u.login AS utilisateur,
+       o.date_achat, o.date_creation
+  FROM ordinateurs o
+  LEFT JOIN fabricants    f ON f.id = o.fabricant_id
+  LEFT JOIN etats         e ON e.id = o.etat_id
+  LEFT JOIN localisations l ON l.id = o.localisation_id
+  LEFT JOIN utilisateurs  u ON u.id = o.utilisateur_id
+ WHERE o.est_supprime = 0;
+-- En environnement multi-instance, ajouter :
+-- UNION ALL
+-- SELECT 'PAU' AS source, ... FROM ordinateurs@db_pau o
+--   LEFT JOIN fabricants@db_pau ... etc.
 
 -- Vues matérialisées côté Pau (réplication des référentiels depuis Cergy)
 -- À exécuter depuis le serveur de Pau :

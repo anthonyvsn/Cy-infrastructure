@@ -695,28 +695,49 @@ END;
 -- =============================================================================
 -- SECTION 6 : TRIGGER INSTEAD OF SUR VUE GLOBALE (bonus)
 -- =============================================================================
--- Permet d'inserer dans la vue vue_parc_global qui est un UNION ALL : sans ce
--- trigger, Oracle refuse l'INSERT car ne sait pas quelle table cibler.
--- Le trigger redirige vers la table locale ou distante selon site_id.
+-- En environnement multi-instance, la vue vue_parc_global est un UNION ALL
+-- (Cergy + Pau via db_pau). Un INSERT direct sur cette vue echoue car Oracle
+-- ne sait pas quelle table cibler. Le trigger INSTEAD OF redirige selon
+-- site_id : Cergy = local, Pau = via DB link.
+--
+-- NB : ce trigger n'est utile QUE quand vue_parc_global est un UNION ALL.
+-- En environnement mono-instance (dev / soutenance) ou la vue est juste
+-- SELECT FROM ordinateurs, ce trigger est superflu. On le garde declare
+-- pour demontrer le concept INSTEAD OF, et on protege la creation contre
+-- l'absence de la version UNION ALL.
 
-CREATE OR REPLACE TRIGGER trg_insert_vue_parc_global
-INSTEAD OF INSERT ON vue_parc_global
-FOR EACH ROW
+DECLARE
+  v_cnt NUMBER;
 BEGIN
-  IF :NEW.site_id = 1 THEN
-    -- Insertion locale (Cergy)
-    INSERT INTO ordinateurs (id, nom, numero_serie, site_id, entite_id, date_creation)
-    VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
-            :NEW.site_id, :NEW.entite_id, SYSDATE);
-  ELSIF :NEW.site_id = 2 THEN
-    -- Insertion distante (Pau via database link)
-    INSERT INTO ordinateurs@db_pau (id, nom, numero_serie, site_id, entite_id, date_creation)
-    VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
-            :NEW.site_id, :NEW.entite_id, SYSDATE);
+  -- On ne cree le trigger que si la vue contient un UNION (i.e. multi-instance)
+  SELECT COUNT(*) INTO v_cnt
+    FROM user_views
+   WHERE view_name = 'VUE_PARC_GLOBAL'
+     AND UPPER(text_vc) LIKE '%UNION%';
+  IF v_cnt > 0 THEN
+    EXECUTE IMMEDIATE q'[
+      CREATE OR REPLACE TRIGGER trg_insert_vue_parc_global
+      INSTEAD OF INSERT ON vue_parc_global
+      FOR EACH ROW
+      BEGIN
+        IF :NEW.site_id = 1 THEN
+          INSERT INTO ordinateurs (id, nom, numero_serie, site_id, entite_id, date_creation)
+          VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
+                  :NEW.site_id, :NEW.entite_id, SYSDATE);
+        ELSIF :NEW.site_id = 2 THEN
+          INSERT INTO ordinateurs@db_pau (id, nom, numero_serie, site_id, entite_id, date_creation)
+          VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
+                  :NEW.site_id, :NEW.entite_id, SYSDATE);
+        ELSE
+          RAISE_APPLICATION_ERROR(-20160,
+            'Site inconnu (site_id=' || :NEW.site_id
+            || '). Valeurs attendues : 1 (Cergy) ou 2 (Pau).');
+        END IF;
+      END;
+    ]';
+    DBMS_OUTPUT.PUT_LINE('Trigger INSTEAD OF cree (mode multi-instance detecte).');
   ELSE
-    RAISE_APPLICATION_ERROR(-20160,
-      'Site inconnu (site_id=' || :NEW.site_id
-      || '). Valeurs attendues : 1 (Cergy) ou 2 (Pau).');
+    DBMS_OUTPUT.PUT_LINE('Trigger INSTEAD OF non cree : vue_parc_global est mono-instance.');
   END IF;
 END;
 /
