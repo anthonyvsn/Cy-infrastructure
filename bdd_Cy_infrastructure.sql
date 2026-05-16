@@ -452,6 +452,68 @@ CREATE TABLE ports_reseau (
 
 
 -- =============================================================================
+-- 7 bis. CLUSTER (co-localisation par localisation_id)
+-- =============================================================================
+-- Un cluster regroupe physiquement sur disque les lignes de plusieurs tables
+-- qui partagent une cle. Ici, ordinateurs et peripheriques partageant la meme
+-- localisation_id sont stockes ensemble dans les memes blocs.
+--   Avantage : un SELECT "tous les ordis + periph d'une salle" lit moins
+--              de blocs (regroupement physique).
+--   Inconvenient : INSERT/UPDATE plus couteux, table cluster monolithique
+--              (pas de TRUNCATE individuel).
+--
+-- Approche pedagogique : on cree des tables jumelles _cl en parallele des
+-- originales (pas de migration destructive). tests_perf.sql synchronise les
+-- _cl apres le jeu de test puis compare les performances cluster vs heap.
+
+CREATE CLUSTER cl_materiel_localisation (localisation_id NUMBER)
+  SIZE 512 TABLESPACE TS_MATERIEL_CERGY;
+
+CREATE INDEX idx_cluster_materiel_loc ON CLUSTER cl_materiel_localisation
+  TABLESPACE TS_INDEX;
+
+CREATE TABLE ordinateurs_cl (
+  id                  NUMBER PRIMARY KEY,
+  nom                 VARCHAR2(255) NOT NULL,
+  numero_serie        VARCHAR2(255),
+  numero_inventaire   VARCHAR2(255),
+  hierarchy_level_id  NUMBER NOT NULL REFERENCES hierarchy_level(id),
+  localisation_id     NUMBER REFERENCES localisations(id),
+  type_ordinateur_id  NUMBER REFERENCES types_ordinateur(id),
+  modele_id           NUMBER REFERENCES modeles_ordinateur(id),
+  fabricant_id        NUMBER REFERENCES fabricants(id),
+  etat_id             NUMBER REFERENCES etats(id),
+  utilisateur_id      NUMBER REFERENCES utilisateurs(id),
+  groupe_id           NUMBER REFERENCES groupes(id),
+  technicien_id       NUMBER REFERENCES utilisateurs(id),
+  site_id             NUMBER NOT NULL REFERENCES sites(id),
+  commentaire         VARCHAR2(255),
+  est_supprime        NUMBER(1) DEFAULT 0,
+  est_template        NUMBER(1) DEFAULT 0,
+  date_achat          DATE,
+  date_creation       DATE DEFAULT SYSDATE,
+  date_modification   DATE DEFAULT SYSDATE
+) CLUSTER cl_materiel_localisation (localisation_id);
+
+CREATE TABLE peripheriques_cl (
+  id                 NUMBER PRIMARY KEY,
+  nom                VARCHAR2(255) NOT NULL,
+  numero_serie       VARCHAR2(255),
+  type_peripherique  VARCHAR2(100) NOT NULL,
+  hierarchy_level_id NUMBER NOT NULL REFERENCES hierarchy_level(id),
+  localisation_id    NUMBER REFERENCES localisations(id),
+  fabricant_id       NUMBER REFERENCES fabricants(id),
+  etat_id            NUMBER REFERENCES etats(id),
+  utilisateur_id     NUMBER REFERENCES utilisateurs(id),
+  site_id            NUMBER NOT NULL REFERENCES sites(id),
+  commentaire        VARCHAR2(255),
+  est_supprime       NUMBER(1) DEFAULT 0,
+  date_creation      DATE DEFAULT SYSDATE,
+  date_modification  DATE DEFAULT SYSDATE
+) CLUSTER cl_materiel_localisation (localisation_id);
+
+
+-- =============================================================================
 -- 8. TABLE HISTORIQUE (audit)
 -- =============================================================================
 
@@ -682,6 +744,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON versions_logiciel        TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON installations_logiciels  TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON equipements_reseau       TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ports_reseau             TO TECH_CERGY;
+-- Tables clusterisees (bonus pedagogique : co-localisation par salle)
+GRANT SELECT, INSERT, UPDATE, DELETE ON ordinateurs_cl           TO TECH_CERGY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON peripheriques_cl         TO TECH_CERGY;
 GRANT SELECT ON utilisateurs TO TECH_CERGY;
 GRANT SELECT ON profils      TO TECH_CERGY;
 

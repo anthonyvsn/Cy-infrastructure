@@ -699,8 +699,11 @@ END;
 
 
 -- ----- Unicite du numero de serie par site (ordinateurs) --------------------
+-- IMPORTANT : on ne fire que si numero_serie ou site_id changent. Sinon, un
+-- simple UPDATE etat_id provoquerait un ORA-04091 "mutating table" (le
+-- trigger SELECT sur la table en cours de modification).
 CREATE OR REPLACE TRIGGER trg_valid_serie_ordinateur
-BEFORE INSERT OR UPDATE ON ordinateurs
+BEFORE INSERT OR UPDATE OF numero_serie, site_id ON ordinateurs
 FOR EACH ROW
 DECLARE
   v_count NUMBER;

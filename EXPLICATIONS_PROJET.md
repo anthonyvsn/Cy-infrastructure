@@ -12,7 +12,7 @@ L'énoncé (MiniProjetSIE2026) demande sept concepts. Voici où chacun est impl�
 |---|---|---|
 | Users et rôles | OK (4 rôles, 4 users) | [bdd_Cy_infrastructure.sql](bdd_Cy_infrastructure.sql) §2 |
 | Tablespaces | OK (7 tablespaces) | [bdd_Cy_infrastructure.sql](bdd_Cy_infrastructure.sql) §1 |
-| Clusters | **Abandonné** (à justifier) | voir §12.1 ci-dessous |
+| Clusters | OK (tables jumelles _cl) | [bdd_Cy_infrastructure.sql](bdd_Cy_infrastructure.sql) §7 bis |
 | Index | OK (B-tree, bitmap, fonctionnels) | [bdd_Cy_infrastructure.sql](bdd_Cy_infrastructure.sql) §9 |
 | Vues | OK (6 vues + 1 MV) | [bdd_Cy_infrastructure.sql](bdd_Cy_infrastructure.sql) §10 |
 | PL/SQL (triggers/curseurs/proc/fonctions) | OK (41+11+6 + 4 packages) | [pl_sql_*.sql](.) |
@@ -24,10 +24,9 @@ L'énoncé (MiniProjetSIE2026) demande sept concepts. Voici où chacun est impl�
 | **Diagrammes UML / relationnels** | À finaliser | [diagrammes/](diagrammes/) (.puml) |
 
 **Manques à combler avant le rendu :**
-1. Justifier dans le rapport pourquoi le cluster a été abandonné (ou le réintégrer).
-2. Mettre à jour les `.puml` dans [diagrammes/](diagrammes/) (encore au schéma `entites`/`profils_utilisateurs`).
-3. Tracer les graphiques de perf à partir des résultats §11.
-4. Présenter la comparaison "avant/après" : structure GLPI brute vs notre version refactorée.
+1. Mettre à jour les `.puml` dans [diagrammes/](diagrammes/) (encore au schéma `entites`/`profils_utilisateurs`).
+2. Tracer les graphiques de perf à partir des résultats §11.
+3. Présenter la comparaison "avant/après" : structure GLPI brute vs notre version refactorée.
 
 ---
 
@@ -468,21 +467,21 @@ L'énoncé demande explicitement cette comparaison. **À rédiger dans le rappor
 
 ## 12. Choix techniques justifiés
 
-### 12.1 Cluster abandonné
+### 12.1 Cluster en tables jumelles
 
-Le cluster Oracle a été créé puis retiré. Raisons documentées :
+Le cluster `cl_materiel_localisation` co-localise physiquement les lignes d'`ordinateurs_cl` et `peripheriques_cl` qui partagent la même `localisation_id`. Avantage : un SELECT "tous les équipements d'une salle" lit beaucoup moins de blocs.
 
-- Un cluster co-localise physiquement les lignes de plusieurs tables partageant une clé. Pertinent quand on lit TOUJOURS les tables ensemble.
-- Dans notre cas, `ordinateurs` et `peripheriques` partagent `localisation_id` mais sont rarement consultés ensemble dans les vues métier (on a une vue par type).
-- Le gain est marginal sur des tables de quelques milliers de lignes ; il deviendrait visible à 100K+ lignes.
-- En contrepartie, le cluster complique la maintenance (impossibilité de `TRUNCATE` indépendant, plan d'exécution moins prévisible).
+**Choix : tables _cl jumelles** plutôt que de migrer les tables principales :
 
-**Décision finale** : ne pas l'inclure. **À justifier oralement** comme un choix éclairé après analyse, pas comme un oubli.
+- Les tables principales (`ordinateurs`, `peripheriques`) gardent leur définition propre (tablespace dédié, triggers, FK), et le code applicatif n'est pas perturbé.
+- Les jumelles `_cl` servent uniquement à démontrer le concept et à comparer les performances (TEST 4 dans [tests_perf.sql](tests_perf.sql)).
+- La synchronisation se fait via la procédure `sync_tables_cluster` appelée au début de tests_perf.
 
-**Si on veut le réintégrer** (l'énoncé l'attend explicitement), il faudrait :
-1. Recréer le cluster `cl_materiel_localisation` dans le fichier principal.
-2. Créer deux tables `ordinateurs_cl` et `peripheriques_cl` qui utilisent le cluster.
-3. Ajouter un TEST 4 dans `tests_perf.sql` qui compare un SELECT par localisation sur les versions cluster vs heap.
+**Inconvénient connu** : duplication des données pour le test. Acceptable parce que strictement pédagogique.
+
+**Compromis sur les vrais cas d'usage** : on n'a pas migré les tables principales dans le cluster parce que :
+- `ordinateurs` et `peripheriques` sont rarement consultés ensemble dans les vues métier (vue dédiée par type).
+- Le cluster impose un tablespace unique → on perd la séparation `TS_MATERIEL_CERGY` qui sert au partitionnement par site.
 
 ### 12.2 `profils` restaurée
 
