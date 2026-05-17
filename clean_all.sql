@@ -1,62 +1,50 @@
--- =============================================================================
--- SCRIPT DE NETTOYAGE COMPLET -- Projet GLPI CY Tech
--- A executer en tant que SYSTEM dans SQL*Plus
--- Supprime tous les objets crees par les 5 scripts du projet
--- =============================================================================
+/*
+	Ce fichier contient le script de nettoyage complet du projet.
+	Il est a executer sous SYSTEM dans SQL*PLUS.
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 SET FEEDBACK OFF;
 
--- ----------------------------------------------------------------
--- 0. KILL des sessions actives des utilisateurs du projet
---    (evite ORA-01940 lors du DROP USER)
--- ----------------------------------------------------------------
+-- Destruction des sessions actives
 BEGIN
-  FOR s IN (SELECT sid, serial#, username
-              FROM v$session
-             WHERE username IN ('ADMIN_CYTECH','TECH_CERGY','TECH_PAU','USER_RO')) LOOP
-    BEGIN
-      EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || s.sid || ',' || s.serial# || ''' IMMEDIATE';
-      DBMS_OUTPUT.PUT_LINE('KILL session : ' || s.username || ' (sid=' || s.sid || ')');
-    EXCEPTION
-      WHEN OTHERS THEN NULL;
-    END;
-  END LOOP;
+	FOR s IN (SELECT sid, serial#, username
+				FROM v$session
+				WHERE username IN ('ADMIN_CYTECH','TECH_CERGY','TECH_PAU','USER_RO')) LOOP
+		BEGIN
+		EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || s.sid || ',' || s.serial# || ''' IMMEDIATE';
+		DBMS_OUTPUT.PUT_LINE('KILL session : ' || s.username || ' (sid=' || s.sid || ')');
+		EXCEPTION
+		WHEN OTHERS THEN NULL;
+		END;
+	END LOOP;
 END;
 /
 
 DECLARE
-  PROCEDURE d(stmt VARCHAR2) IS
-  BEGIN
-    EXECUTE IMMEDIATE stmt;
-    DBMS_OUTPUT.PUT_LINE('OK : ' || stmt);
-  EXCEPTION
-    WHEN OTHERS THEN
-      DBMS_OUTPUT.PUT_LINE('SKIP : ' || stmt || ' -- ' || SQLERRM);
-  END;
+	PROCEDURE d(stmt VARCHAR2) IS
+	BEGIN
+		EXECUTE IMMEDIATE stmt;
+		DBMS_OUTPUT.PUT_LINE('OK : ' || stmt);
+	EXCEPTION
+		WHEN OTHERS THEN
+		DBMS_OUTPUT.PUT_LINE('SKIP : ' || stmt || ' -- ' || SQLERRM);
+	END;
 BEGIN
 
-  -- ----------------------------------------------------------------
-  -- 1. SYNONYMES PUBLICS
-  -- ----------------------------------------------------------------
+  -- Suppression des PUBLIC SYNONYM
   d('DROP PUBLIC SYNONYM ordinateurs_pau');
   d('DROP PUBLIC SYNONYM peripheriques_pau');
   d('DROP PUBLIC SYNONYM telephones_pau');
   d('DROP PUBLIC SYNONYM equipements_reseau_pau');
 
-  -- ----------------------------------------------------------------
-  -- 2. DATABASE LINK
-  -- ----------------------------------------------------------------
+  -- Suppression des DATABASE LINK
   d('DROP DATABASE LINK db_pau');
 
-  -- ----------------------------------------------------------------
-  -- 3. VUE MATERIALISEE
-  -- ----------------------------------------------------------------
+  -- Suppression des MATERIALIZED VIEW
   d('DROP MATERIALIZED VIEW mv_stats_parc');
 
-  -- ----------------------------------------------------------------
-  -- 4. VUES
-  -- ----------------------------------------------------------------
+  -- Suppression des VIEW
   d('DROP VIEW vue_parc_global_v2');
   d('DROP VIEW vue_parc_global');
   d('DROP VIEW vue_utilisateurs_droits');
@@ -65,10 +53,7 @@ BEGIN
   d('DROP VIEW vue_parc_pau');
   d('DROP VIEW vue_parc_cergy');
 
-  -- ----------------------------------------------------------------
-  -- 5. TRIGGERS (supprimes automatiquement avec les tables,
-  --    mais on les liste au cas ou les tables n'existent pas encore)
-  -- ----------------------------------------------------------------
+  -- Suppression des TRIGGER
   d('DROP TRIGGER trg_pk_sites');
   d('DROP TRIGGER trg_pk_entites');
   d('DROP TRIGGER trg_pk_localisations');
@@ -111,17 +96,13 @@ BEGIN
   d('DROP TRIGGER trg_valid_delete_equip_reseau');
   d('DROP TRIGGER trg_valid_serie_ordinateur');
 
-  -- ----------------------------------------------------------------
-  -- 6. PACKAGES
-  -- ----------------------------------------------------------------
+  -- Suppression des PACKAGE
   d('DROP PACKAGE pkg_maintenance');
   d('DROP PACKAGE pkg_reseau');
   d('DROP PACKAGE pkg_stats');
   d('DROP PACKAGE pkg_parc_info');
 
-  -- ----------------------------------------------------------------
-  -- 7. PROCEDURES ET FONCTIONS
-  -- ----------------------------------------------------------------
+  -- Suppression des PROCEDURE et FONCTION
   d('DROP PROCEDURE sync_tables_cluster');
   d('DROP PROCEDURE log_change');
   d('DROP PROCEDURE p_ajouter_ordinateur');
@@ -141,10 +122,8 @@ BEGIN
   d('DROP FUNCTION f_user_id_par_email');
   d('DROP FUNCTION f_nom_complet_entite');
 
-  -- ----------------------------------------------------------------
-  -- 8. TABLES (CASCADE CONSTRAINTS pour ignorer les FK)
-  --    Ordre : dependances d'abord
-  -- ----------------------------------------------------------------
+  -- Suppression des TABLE (par ordre de dependances d'abord)
+  -- On utilise CASCADE CONSTRAINTS pour ignorer les Foreign Key
   d('DROP TABLE installations_logiciels CASCADE CONSTRAINTS PURGE');
   d('DROP TABLE versions_logiciel        CASCADE CONSTRAINTS PURGE');
   d('DROP TABLE logiciels                CASCADE CONSTRAINTS PURGE');
@@ -170,14 +149,10 @@ BEGIN
   d('DROP TABLE etats                    CASCADE CONSTRAINTS PURGE');
   d('DROP TABLE types_ordinateur         CASCADE CONSTRAINTS PURGE');
 
-  -- ----------------------------------------------------------------
-  -- 9. CLUSTER (apres la suppression des tables clusterisees)
-  -- ----------------------------------------------------------------
+  -- Suppression des CLUSTER
   d('DROP CLUSTER cl_materiel_localisation INCLUDING TABLES CASCADE CONSTRAINTS');
 
-  -- ----------------------------------------------------------------
-  -- 10. SEQUENCES
-  -- ----------------------------------------------------------------
+  -- Suppression des SEQUENCE
   d('DROP SEQUENCE seq_sites');
   d('DROP SEQUENCE seq_entites');
   d('DROP SEQUENCE seq_localisations');
@@ -200,19 +175,14 @@ BEGIN
   d('DROP SEQUENCE seq_ports_reseau');
   d('DROP SEQUENCE seq_historique');
 
-  -- ----------------------------------------------------------------
-  -- 11. UTILISATEURS (CASCADE supprime leurs objets eventuels)
-  --     _ORACLE_SCRIPT=true requis car les users ont ete crees avec ce flag
-  -- ----------------------------------------------------------------
+  -- Suppression des USER
   d('ALTER SESSION SET "_ORACLE_SCRIPT"=true');
   d('DROP USER ADMIN_CYTECH CASCADE');
   d('DROP USER TECH_CERGY   CASCADE');
   d('DROP USER TECH_PAU     CASCADE');
   d('DROP USER USER_RO      CASCADE');
 
-  -- ----------------------------------------------------------------
-  -- 12. ROLES
-  -- ----------------------------------------------------------------
+  -- Suppression des ROLE
   d('DROP ROLE R_ADMIN');
   d('DROP ROLE R_TECH_CERGY');
   d('DROP ROLE R_TECH_PAU');
@@ -221,9 +191,8 @@ BEGIN
 END;
 /
 
--- ----------------------------------------------------------------
--- 13. TABLESPACES (supprime aussi les datafiles .dbf)
--- ----------------------------------------------------------------
+
+-- Suppression des TABLESPACE (supprime aussi les datafiles .dbf)
 BEGIN EXECUTE IMMEDIATE 'DROP TABLESPACE TS_MATERIEL_CERGY INCLUDING CONTENTS AND DATAFILES'; EXCEPTION WHEN OTHERS THEN DBMS_OUTPUT.PUT_LINE('SKIP : DROP TABLESPACE TS_MATERIEL_CERGY'); END;
 /
 BEGIN EXECUTE IMMEDIATE 'DROP TABLESPACE TS_MATERIEL_PAU   INCLUDING CONTENTS AND DATAFILES'; EXCEPTION WHEN OTHERS THEN DBMS_OUTPUT.PUT_LINE('SKIP : DROP TABLESPACE TS_MATERIEL_PAU');   END;
