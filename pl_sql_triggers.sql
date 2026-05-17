@@ -1,220 +1,244 @@
--- =============================================================================
--- TRIGGERS PL/SQL -- Projet GLPI CY Tech multi-sites
--- =============================================================================
--- Fichier consolide regroupant TOUS les triggers du projet.
---
--- ORDRE D'EXECUTION RECOMMANDE :
---   1) bdd_Cy_infrastructure.sql
---   2) corrections_sql.sql
---   3) Section 1 de CE fichier (triggers d'auto-incrementation des PK)
---      => indispensables AVANT le jeu de test pour que les INSERTs sans
---         id soient acceptes
---   4) jeu_de_test.sql (peuplement)
---   5) Sections 2-6 de CE fichier (audit, validation, INSTEAD OF...)
---      => apres le peuplement pour ne pas polluer historique
---   6) pl_sql_packages.sql
---
--- Astuce : pour appliquer tout le fichier d'un coup malgre l'audit qui pollue
---   le peuplement, faire un TRUNCATE TABLE historique apres le jeu de test.
---
--- Contenu :
---   Section 1 : Triggers d'auto-incrementation des PK (10 triggers)
---   Section 2 : Triggers de mise a jour de date_modification (12 triggers)
---   Section 3 : Triggers d'audit (8 triggers) avec procedure factorisee log_change
---   Section 4 : Triggers de validation site/entite (5 triggers)
---   Section 5 : Triggers de validation metier (MAC, dates, suppressions, unicite)
---   Section 6 : Trigger INSTEAD OF sur vue (bonus pedagogique)
---
--- Concepts du cours couverts :
---   - Triggers BEFORE/AFTER, ROW-LEVEL, multi-evenement
---   - INSTEAD OF sur vues
---   - Procedure factorisee log_change pour eviter la duplication
---   - Gestion d'erreurs (RAISE_APPLICATION_ERROR, codes < -20000)
---   - %ROWTYPE, %TYPE, REGEXP_LIKE
--- =============================================================================
+/*
+  Ce fichier contient tous les triggers du projet.
+  Contient :
+    - Triggers d'auto-incrementation des PK (10 triggers)
+    - Triggers de mise a jour de date_modification (12 triggers)
+    - Triggers d'audit (8 triggers) avec procedure factorisee log_change
+    - Triggers de validation site/hierarchy_level (5 triggers)
+    - Triggers de validation metier (MAC, dates, suppressions, unicite)
+    - Trigger INSTEAD OF sur vue (bonus pedagogique)
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD HH24:MI:SS';
 
 
-
-
 -- =============================================================================
--- SECTION 1 : TRIGGERS D'AUTO-INCREMENTATION DES PK
+-- TRIGGERS D'AUTO-INCREMENTATION
 -- =============================================================================
--- Pourquoi : meme si le jeu de test passe explicitement seq.NEXTVAL,
--- une application cliente peut ne pas le faire. Le trigger garantit que
--- toute INSERT sans id recoit automatiquement une cle unique.
--- Test IS NULL : on n'ecrase pas une valeur explicitement fournie.
 
 CREATE OR REPLACE TRIGGER trg_pk_sites
 BEFORE INSERT ON sites
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_sites.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_sites.NEXTVAL;
+  END IF;
 END;
 /
 
-CREATE OR REPLACE TRIGGER trg_pk_entites
-BEFORE INSERT ON entites
+
+CREATE OR REPLACE TRIGGER trg_pk_hierarchy_level
+BEFORE INSERT ON hierarchy_level
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_entites.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_hierarchy_level.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_localisations
 BEFORE INSERT ON localisations
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_localisations.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_localisations.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_utilisateurs
 BEFORE INSERT ON utilisateurs
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_utilisateurs.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_utilisateurs.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_ordinateurs
 BEFORE INSERT ON ordinateurs
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_ordinateurs.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_ordinateurs.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_peripheriques
 BEFORE INSERT ON peripheriques
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_peripheriques.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_peripheriques.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_telephones
 BEFORE INSERT ON telephones
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_telephones.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_telephones.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_equip_reseau
 BEFORE INSERT ON equipements_reseau
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_equip_reseau.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_equip_reseau.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_ports_reseau
 BEFORE INSERT ON ports_reseau
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_ports_reseau.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_ports_reseau.NEXTVAL;
+  END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_pk_historique
 BEFORE INSERT ON historique
 FOR EACH ROW
 BEGIN
-  IF :NEW.id IS NULL THEN :NEW.id := seq_historique.NEXTVAL; END IF;
+  IF :NEW.id IS NULL THEN
+    :NEW.id := seq_historique.NEXTVAL;
+  END IF;
 END;
 /
 
 
 
 
--- =============================================================================
--- SECTION 2 : TRIGGERS DE MAJ AUTOMATIQUE DE date_modification
--- =============================================================================
--- Pourquoi : on veut tracer la derniere modification de chaque ligne sans
--- dependre du code client (qui peut oublier de mettre a jour ce champ).
--- BEFORE UPDATE FOR EACH ROW : on modifie :NEW avant que la ligne ne soit
--- ecrite, sans declencher un second UPDATE recursif.
 
+-- =============================================================================
+-- TRIGGERS DE MAJ AUTOMATIQUE DE date_modification
+-- =============================================================================
 CREATE OR REPLACE TRIGGER trg_majdate_sites
 BEFORE UPDATE ON sites
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
 
-CREATE OR REPLACE TRIGGER trg_majdate_entites
-BEFORE UPDATE ON entites
+
+CREATE OR REPLACE TRIGGER trg_majdate_hierarchy_level
+BEFORE UPDATE ON hierarchy_level
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_localisations
 BEFORE UPDATE ON localisations
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
 
-CREATE OR REPLACE TRIGGER trg_majdate_profils
-BEFORE UPDATE ON profils
-FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
-/
+
+/* trg_majdate_profils est supprim??. */
 
 CREATE OR REPLACE TRIGGER trg_majdate_groupes
 BEFORE UPDATE ON groupes
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_utilisateurs
 BEFORE UPDATE ON utilisateurs
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_ordinateurs
 BEFORE UPDATE ON ordinateurs
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_peripheriques
 BEFORE UPDATE ON peripheriques
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_telephones
 BEFORE UPDATE ON telephones
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_logiciels
 BEFORE UPDATE ON logiciels
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_equip_reseau
 BEFORE UPDATE ON equipements_reseau
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_majdate_ports_reseau
 BEFORE UPDATE ON ports_reseau
 FOR EACH ROW
-BEGIN :NEW.date_modification := SYSDATE; END;
+BEGIN
+  :NEW.date_modification := SYSDATE;
+END;
 /
+
 
 
 
 
 -- =============================================================================
--- SECTION 3 : TRIGGERS D'AUDIT VERS LA TABLE historique
+-- TRIGGERS D'AUDIT VERS LA TABLE historique
 -- =============================================================================
 -- Strategie :
 --   - 1 trigger AFTER INSERT/UPDATE/DELETE par table sensible
@@ -227,6 +251,10 @@ BEGIN :NEW.date_modification := SYSDATE; END;
 --     (qui utilise PRAGMA AUTONOMOUS_TRANSACTION).
 
 -- ----- Procedure utilitaire (factorisation des INSERT historique) -----------
+/*
+ Ensemble des triggers d'ajout d'informations dans la table historique.
+ Ces triggers font tous appel ?? la procedure log_change.
+*/
 CREATE OR REPLACE PROCEDURE log_change(
   p_type_objet   VARCHAR2,
   p_objet_id     NUMBER,
@@ -236,17 +264,15 @@ CREATE OR REPLACE PROCEDURE log_change(
   p_action       VARCHAR2
 ) IS
 BEGIN
-  INSERT INTO historique(
-    id, type_objet, objet_id, utilisateur_id,
-    champ_modifie, ancienne_valeur, nouvelle_valeur,
-    type_action, date_action
-  ) VALUES (
+  INSERT INTO historique(id, type_objet, objet_id, utilisateur_id, champ_modifie, ancienne_valeur, nouvelle_valeur, type_action, date_action)
+  VALUES (
     seq_historique.NEXTVAL, p_type_objet, p_objet_id, NULL,
     p_champ, p_ancienne, p_nouvelle,
     p_action, SYSDATE
   );
 END;
 /
+
 
 
 -- ----- Audit ORDINATEURS ----------------------------------------------------
@@ -287,6 +313,7 @@ END;
 /
 
 
+
 -- ----- Audit PERIPHERIQUES --------------------------------------------------
 CREATE OR REPLACE TRIGGER trg_audit_peripheriques
 AFTER INSERT OR UPDATE OR DELETE ON peripheriques
@@ -317,6 +344,7 @@ END;
 /
 
 
+
 -- ----- Audit TELEPHONES -----------------------------------------------------
 CREATE OR REPLACE TRIGGER trg_audit_telephones
 AFTER INSERT OR UPDATE OR DELETE ON telephones
@@ -341,6 +369,7 @@ BEGIN
   END IF;
 END;
 /
+
 
 
 -- ----- Audit UTILISATEURS ---------------------------------------------------
@@ -371,13 +400,14 @@ BEGIN
       log_change('utilisateurs', :NEW.id, 'profil_id',
                  TO_CHAR(:OLD.profil_id), TO_CHAR(:NEW.profil_id), 'UPDATE');
     END IF;
-    IF NVL(:OLD.entite_id,-1) <> NVL(:NEW.entite_id,-1) THEN
-      log_change('utilisateurs', :NEW.id, 'entite_id',
-                 TO_CHAR(:OLD.entite_id), TO_CHAR(:NEW.entite_id), 'UPDATE');
+    IF NVL(:OLD.hierarchy_level_id,-1) <> NVL(:NEW.hierarchy_level_id,-1) THEN
+      log_change('utilisateurs', :NEW.id, 'hierarchy_level_id',
+                 TO_CHAR(:OLD.hierarchy_level_id), TO_CHAR(:NEW.hierarchy_level_id), 'UPDATE');
     END IF;
   END IF;
 END;
 /
+
 
 
 -- ----- Audit EQUIPEMENTS_RESEAU ---------------------------------------------
@@ -410,6 +440,7 @@ END;
 /
 
 
+
 -- ----- Audit LOGICIELS ------------------------------------------------------
 CREATE OR REPLACE TRIGGER trg_audit_logiciels
 AFTER INSERT OR UPDATE OR DELETE ON logiciels
@@ -430,6 +461,7 @@ BEGIN
   END IF;
 END;
 /
+
 
 
 -- ----- Audit INSTALLATIONS_LOGICIELS ----------------------------------------
@@ -472,99 +504,98 @@ END;
 
 
 
-
 -- =============================================================================
--- SECTION 4 : TRIGGERS DE VALIDATION SITE / ENTITE
+-- TRIGGERS DE VALIDATION SITE / ENTITE
 -- =============================================================================
--- Pourquoi en BEFORE : on doit pouvoir refuser l'insertion / mise a jour
--- avant qu'elle n'atteigne la table. RAISE_APPLICATION_ERROR (-20xxx)
--- propage une exception qui ROLLBACK la ligne en cours.
---
--- Regle : un materiel dans une entite doit etre du meme site que cette entite.
--- Garde-fou contre les saisies incoherentes.
+-- Un materiel dans une hierarchy_level doit etre du meme site que cette hierarchy_level.
+-- On se pr??munit des saisies incoherentes.
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_ordi
 BEFORE INSERT OR UPDATE ON ordinateurs
 FOR EACH ROW
 DECLARE
-  v_site_entite NUMBER;
+  v_site_hierarchy_level NUMBER;
 BEGIN
-  SELECT site_id INTO v_site_entite
-    FROM entites WHERE id = :NEW.entite_id;
-  IF v_site_entite <> :NEW.site_id THEN
+  SELECT site_id INTO v_site_hierarchy_level
+    FROM hierarchy_level WHERE id = :NEW.hierarchy_level_id;
+  IF v_site_hierarchy_level <> :NEW.site_id THEN
     RAISE_APPLICATION_ERROR(-20101,
       'Incoherence site : ordinateur(site_id=' || :NEW.site_id
-      || ') vs entite(site_id=' || v_site_entite || ').');
+      || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 EXCEPTION
   WHEN NO_DATA_FOUND THEN
     RAISE_APPLICATION_ERROR(-20102,
-      'Entite ' || :NEW.entite_id || ' introuvable.');
+      'Entite ' || :NEW.hierarchy_level_id || ' introuvable.');
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_periph
 BEFORE INSERT OR UPDATE ON peripheriques
 FOR EACH ROW
 DECLARE
-  v_site_entite NUMBER;
+  v_site_hierarchy_level NUMBER;
 BEGIN
-  SELECT site_id INTO v_site_entite
-    FROM entites WHERE id = :NEW.entite_id;
-  IF v_site_entite <> :NEW.site_id THEN
+  SELECT site_id INTO v_site_hierarchy_level
+    FROM hierarchy_level WHERE id = :NEW.hierarchy_level_id;
+  IF v_site_hierarchy_level <> :NEW.site_id THEN
     RAISE_APPLICATION_ERROR(-20103,
       'Incoherence site : peripherique(site_id=' || :NEW.site_id
-      || ') vs entite(site_id=' || v_site_entite || ').');
+      || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_tel
 BEFORE INSERT OR UPDATE ON telephones
 FOR EACH ROW
 DECLARE
-  v_site_entite NUMBER;
+  v_site_hierarchy_level NUMBER;
 BEGIN
-  SELECT site_id INTO v_site_entite
-    FROM entites WHERE id = :NEW.entite_id;
-  IF v_site_entite <> :NEW.site_id THEN
+  SELECT site_id INTO v_site_hierarchy_level
+    FROM hierarchy_level WHERE id = :NEW.hierarchy_level_id;
+  IF v_site_hierarchy_level <> :NEW.site_id THEN
     RAISE_APPLICATION_ERROR(-20104,
       'Incoherence site : telephone(site_id=' || :NEW.site_id
-      || ') vs entite(site_id=' || v_site_entite || ').');
+      || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_equip
 BEFORE INSERT OR UPDATE ON equipements_reseau
 FOR EACH ROW
 DECLARE
-  v_site_entite NUMBER;
+  v_site_hierarchy_level NUMBER;
 BEGIN
-  SELECT site_id INTO v_site_entite
-    FROM entites WHERE id = :NEW.entite_id;
-  IF v_site_entite <> :NEW.site_id THEN
+  SELECT site_id INTO v_site_hierarchy_level
+    FROM hierarchy_level WHERE id = :NEW.hierarchy_level_id;
+  IF v_site_hierarchy_level <> :NEW.site_id THEN
     RAISE_APPLICATION_ERROR(-20105,
       'Incoherence site : equipement(site_id=' || :NEW.site_id
-      || ') vs entite(site_id=' || v_site_entite || ').');
+      || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
   END IF;
 END;
 /
+
 
 CREATE OR REPLACE TRIGGER trg_coherence_site_user
 BEFORE INSERT OR UPDATE ON utilisateurs
 FOR EACH ROW
 DECLARE
-  v_site_entite NUMBER;
+  v_site_hierarchy_level NUMBER;
 BEGIN
   -- Verification seulement si les deux champs sont renseignes
-  IF :NEW.entite_id IS NOT NULL AND :NEW.site_id IS NOT NULL THEN
-    SELECT site_id INTO v_site_entite
-      FROM entites WHERE id = :NEW.entite_id;
-    IF v_site_entite <> :NEW.site_id THEN
+  IF :NEW.hierarchy_level_id IS NOT NULL AND :NEW.site_id IS NOT NULL THEN
+    SELECT site_id INTO v_site_hierarchy_level
+      FROM hierarchy_level WHERE id = :NEW.hierarchy_level_id;
+    IF v_site_hierarchy_level <> :NEW.site_id THEN
       RAISE_APPLICATION_ERROR(-20106,
         'Incoherence site : utilisateur(site_id=' || :NEW.site_id
-        || ') vs entite(site_id=' || v_site_entite || ').');
+        || ') vs hierarchy_level(site_id=' || v_site_hierarchy_level || ').');
     END IF;
   END IF;
 END;
@@ -573,26 +604,26 @@ END;
 
 
 
+
 -- =============================================================================
--- SECTION 5 : TRIGGERS DE VALIDATION METIER
+-- TRIGGERS DE VALIDATION METIER
 -- =============================================================================
 
--- ----- Validation du format MAC sur ports_reseau ----------------------------
--- Une adresse MAC doit etre au format XX:XX:XX:XX:XX:XX (hex).
+/* Validation du format MAC sur ports_reseau
+  Une adresse MAC doit etre au format XX:XX:XX:XX:XX:XX (hex).
+*/
 CREATE OR REPLACE TRIGGER trg_valid_mac
 BEFORE INSERT OR UPDATE ON ports_reseau
 FOR EACH ROW
 BEGIN
   IF :NEW.adresse_mac IS NOT NULL
-     AND NOT REGEXP_LIKE(:NEW.adresse_mac,
-                         '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
+     AND NOT REGEXP_LIKE(:NEW.adresse_mac, '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')    /* on utilise des regex.*/
   THEN
-    RAISE_APPLICATION_ERROR(-20110,
-      'Adresse MAC invalide : "' || :NEW.adresse_mac
-      || '" (attendu XX:XX:XX:XX:XX:XX).');
+    RAISE_APPLICATION_ERROR(-20110, 'Adresse MAC invalide : "' || :NEW.adresse_mac || '" (attendu XX:XX:XX:XX:XX:XX).');
   END IF;
 END;
 /
+
 
 
 -- ----- Coherence des dates utilisateurs : date_fin >= date_debut -----------
@@ -605,26 +636,26 @@ BEGIN
      AND :NEW.date_fin  < :NEW.date_debut
   THEN
     RAISE_APPLICATION_ERROR(-20120,
-      'date_fin (' || TO_CHAR(:NEW.date_fin,'YYYY-MM-DD')
-      || ') anterieure a date_debut ('
-      || TO_CHAR(:NEW.date_debut,'YYYY-MM-DD') || ').');
+      'date_fin (' || TO_CHAR(:NEW.date_fin,'YYYY-MM-DD') || ') anterieure a date_debut (' || TO_CHAR(:NEW.date_debut,'YYYY-MM-DD') || ').');
   END IF;
 END;
 /
 
 
--- ----- Verrou contre l'auto-reference d'entite ------------------------------
--- Une entite ne peut pas etre son propre parent.
-CREATE OR REPLACE TRIGGER trg_valid_entite_parent
-BEFORE INSERT OR UPDATE ON entites
+
+-- ----- Verrou contre l'auto-reference de hierarchy_level ------------------------------
+-- Une hierarchy_level ne peut pas etre son propre parent.
+CREATE OR REPLACE TRIGGER trg_valid_hierarchy_level_parent
+BEFORE INSERT OR UPDATE ON hierarchy_level
 FOR EACH ROW
 BEGIN
-  IF :NEW.entite_parent_id = :NEW.id THEN
+  IF :NEW.hierarchy_level_parent_id = :NEW.id THEN
     RAISE_APPLICATION_ERROR(-20130,
-      'Une entite ne peut pas etre son propre parent.');
+      'Une hierarchy_level ne peut pas etre son propre parent.');
   END IF;
 END;
 /
+
 
 
 -- ----- Empecher la suppression d'un ordinateur avec logiciels installes -----
@@ -639,12 +670,12 @@ BEGIN
    WHERE ordinateur_id = :OLD.id;
   IF v_nb_install > 0 THEN
     RAISE_APPLICATION_ERROR(-20140,
-      'Impossible de supprimer l ordinateur (id=' || :OLD.id
-      || ') : ' || v_nb_install || ' logiciel(s) encore installe(s). '
+      'Impossible de supprimer l ordinateur (id=' || :OLD.id || ') : ' || v_nb_install || ' logiciel(s) encore installe(s). '
       || 'Desinstallez-les d abord.');
   END IF;
 END;
 /
+
 
 
 -- ----- Empecher la suppression d'un equipement reseau avec ports actifs -----
@@ -659,31 +690,31 @@ BEGIN
    WHERE equipement_id = :OLD.id AND est_actif = 1;
   IF v_nb_ports > 0 THEN
     RAISE_APPLICATION_ERROR(-20141,
-      'Impossible de supprimer l equipement reseau (id=' || :OLD.id
-      || ') : ' || v_nb_ports || ' port(s) encore actif(s). '
+      'Impossible de supprimer l equipement reseau (id=' || :OLD.id || ') : ' || v_nb_ports || ' port(s) encore actif(s). '
       || 'Desactivez-les d abord.');
   END IF;
 END;
 /
 
 
+
 -- ----- Unicite du numero de serie par site (ordinateurs) --------------------
+-- IMPORTANT : on ne fire que si numero_serie ou site_id changent. Sinon, un
+-- simple UPDATE etat_id provoquerait un ORA-04091 "mutating table" (le
+-- trigger SELECT sur la table en cours de modification).
 CREATE OR REPLACE TRIGGER trg_valid_serie_ordinateur
-BEFORE INSERT OR UPDATE ON ordinateurs
+BEFORE INSERT OR UPDATE OF numero_serie, site_id ON ordinateurs
 FOR EACH ROW
 DECLARE
   v_count NUMBER;
 BEGIN
   IF :NEW.numero_serie IS NOT NULL THEN
     SELECT COUNT(*) INTO v_count
-      FROM ordinateurs
-     WHERE numero_serie = :NEW.numero_serie
-       AND site_id = :NEW.site_id
-       AND id != NVL(:NEW.id, -1);
+    FROM ordinateurs
+    WHERE numero_serie = :NEW.numero_serie AND site_id = :NEW.site_id AND id != NVL(:NEW.id, -1);
     IF v_count > 0 THEN
       RAISE_APPLICATION_ERROR(-20150,
-        'Le numero de serie "' || :NEW.numero_serie
-        || '" existe deja sur ce site.');
+        'Le numero de serie "' || :NEW.numero_serie || '" existe deja sur ce site.');
     END IF;
   END IF;
 END;
@@ -692,8 +723,9 @@ END;
 
 
 
+
 -- =============================================================================
--- SECTION 6 : TRIGGER INSTEAD OF SUR VUE GLOBALE (bonus)
+-- TRIGGER INSTEAD OF SUR VUE GLOBALE (bonus)
 -- =============================================================================
 -- En environnement multi-instance, la vue vue_parc_global est un UNION ALL
 -- (Cergy + Pau via db_pau). Un INSERT direct sur cette vue echoue car Oracle
@@ -709,6 +741,7 @@ END;
 DECLARE
   v_cnt NUMBER;
 BEGIN
+<<<<<<< HEAD
   -- On ne cree le trigger que si la vue contient un UNION (i.e. multi-instance)
   SELECT COUNT(*) INTO v_cnt
     FROM user_views
@@ -738,21 +771,21 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('Trigger INSTEAD OF cree (mode multi-instance detecte).');
   ELSE
     DBMS_OUTPUT.PUT_LINE('Trigger INSTEAD OF non cree : vue_parc_global est mono-instance.');
+=======
+  IF :NEW.site_id = 1 THEN
+    -- Insertion locale (Cergy)
+    INSERT INTO ordinateurs (id, nom, numero_serie, site_id, hierarchy_level_id, date_creation)
+    VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
+            :NEW.site_id, :NEW.hierarchy_level_id, SYSDATE);
+  ELSIF :NEW.site_id = 2 THEN
+    -- Insertion distante (Pau via database link)
+    INSERT INTO ordinateurs@db_pau (id, nom, numero_serie, site_id, hierarchy_level_id, date_creation)
+    VALUES (seq_ordinateurs.NEXTVAL, :NEW.nom, :NEW.numero_serie,
+            :NEW.site_id, :NEW.hierarchy_level_id, SYSDATE);
+  ELSE
+    RAISE_APPLICATION_ERROR(-20160,
+      'Site inconnu (site_id=' || :NEW.site_id || '). Valeurs attendues : 1 (Cergy) ou 2 (Pau).');
+>>>>>>> Anthony
   END IF;
 END;
 /
-
-
-
-
--- =============================================================================
--- FIN DU FICHIER TRIGGERS
--- Recapitulatif :
---  10 triggers PK auto-increment
---  12 triggers date_modification
---   8 triggers d'audit (avec procedure factorisee log_change)
---   5 triggers coherence site/entite
---   6 triggers validation metier (MAC, dates, suppressions, unicite)
---   1 trigger INSTEAD OF sur vue (bonus)
--- Total : 42 triggers + 1 procedure utilitaire
--- =============================================================================
