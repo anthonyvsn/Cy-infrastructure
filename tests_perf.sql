@@ -1,34 +1,32 @@
--- =============================================================================
--- TESTS DE PERFORMANCE -- Projet GLPI CY Tech multi-sites
--- =============================================================================
--- A executer en tant que ADMIN_CYTECH, APRES :
---   1) bdd_Cy_infrastructure.sql
---   2) pl_sql_triggers.sql + pl_sql_functions.sql + pl_sql_procedures.sql
---      + pl_sql_packages.sql
---   3) jeu_de_test.sql (volume representatif)
---
--- Objectif : mesurer et comparer les performances pour justifier les choix
--- d'indexation et de BDDR dans le rapport.
---
--- Methodologie :
---   * EXPLAIN PLAN : montre le plan choisi par l'optimiseur (FULL SCAN,
---     INDEX RANGE SCAN, NESTED LOOPS...) -> indique la qualite du plan.
---   * SET TIMING ON + DBMS_UTILITY.GET_TIME : mesure le wall-clock time
---     d'execution.
---   * On execute chaque requete 3 fois pour amortir le cold cache.
---
--- Comparaisons couvertes :
---   1. Avec / sans index sur ordinateurs.site_id
---   2. Avec / sans index fonctionnel sur UPPER(login)
---   3. Avec / sans index bitmap sur est_supprime
---   4. Cluster (ordinateurs_cl) vs heap (ordinateurs) pour SELECT par localisation
---   5. Vue materialisee (mv_stats_parc) vs agregation live
---   6. Local vs distant (parc global via db_pau)
---   7. Impact global des indexes B-TREE sur ordinateurs
---
--- Resultats attendus a coller dans le rapport, idealement sous forme de
--- graphique a barres.
--- =============================================================================
+/* 
+	TESTS DE PERFORMANCE -- Projet GLPI CY Tech multi-sites
+
+	A executer en tant que ADMIN_CYTECH, APRES :
+	1) bdd_Cy_infrastructure.sql
+	2) pl_sql_triggers.sql + pl_sql_functions.sql + pl_sql_procedures.sql
+		+ pl_sql_packages.sql
+	3) jeu_de_test.sql (volume representatif)
+
+	Objectif : mesurer et comparer les performances pour justifier les choix
+	d'indexation et de BDDR dans le rapport.
+
+	Methodologie :
+	* EXPLAIN PLAN : montre le plan choisi par l'optimiseur (FULL SCAN,
+		INDEX RANGE SCAN, NESTED LOOPS...) -> indique la qualite du plan.
+	* SET TIMING ON + DBMS_UTILITY.GET_TIME : mesure le wall-clock time
+		d'execution.
+	* On execute chaque requete 3 fois pour amortir le cold cache.
+
+	Comparaisons couvertes :
+	1. Avec / sans index sur ordinateurs.site_id
+	2. Avec / sans index fonctionnel sur UPPER(login)
+	3. Avec / sans index bitmap sur est_supprime
+	4. Cluster (ordinateurs_cl) vs heap (ordinateurs) pour SELECT par localisation
+	5. Vue materialisee (mv_stats_parc) vs agregation live
+	6. Local vs distant (parc global via db_pau)
+	7. Impact global des indexes B-TREE sur ordinateurs
+
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 SET TIMING ON;
@@ -43,16 +41,13 @@ SELECT COUNT(*) AS nb_ordis   FROM ordinateurs;
 SELECT COUNT(*) AS nb_periph  FROM peripheriques;
 SELECT COUNT(*) AS nb_users   FROM utilisateurs;
 
+/* 
+	HELPER : procedure de mesure repetee
 
-
-
-
--- =============================================================================
--- HELPER : procedure de mesure repetee
--- =============================================================================
--- Execute une requete N fois et affiche le temps moyen et la variance.
--- Utilise DBMS_UTILITY.GET_TIME (precision 1/100s).
--- Pourquoi : une mesure unique n'est pas fiable (cache effects).
+	Execute une requete N fois et affiche le temps moyen et la variance.
+	Utilise DBMS_UTILITY.GET_TIME (precision 1/100s).
+	Pourquoi : une mesure unique n'est pas fiable (cache effects).
+*/
 
 CREATE OR REPLACE PROCEDURE bench_query(
   p_libelle    VARCHAR2,
@@ -81,12 +76,12 @@ BEGIN
 END;
 /
 
+/*
+	HELPER : synchronise les tables clusterisees avec les originales
 
--- =============================================================================
--- HELPER : synchronise les tables clusterisees avec les originales
--- =============================================================================
--- Copie ordinateurs/peripheriques vers ordinateurs_cl/peripheriques_cl pour
--- que la comparaison cluster vs heap soit sur les memes donnees.
+	Copie ordinateurs/peripheriques vers ordinateurs_cl/peripheriques_cl pour
+	que la comparaison cluster vs heap soit sur les memes donnees.
+*/
 
 CREATE OR REPLACE PROCEDURE sync_tables_cluster IS
   v_nb_o NUMBER;
@@ -109,12 +104,12 @@ END;
 PROMPT ===== Synchronisation des tables clusterisees =====
 EXEC sync_tables_cluster;
 
+/*
+	TEST 1 : INDEX SUR site_id
 
--- =============================================================================
--- TEST 1 : INDEX SUR site_id
--- =============================================================================
--- Requete typique : "tous les ordinateurs du site Cergy".
--- Sans index -> FULL TABLE SCAN. Avec index -> INDEX RANGE SCAN + ROWID.
+	Requete typique : "tous les ordinateurs du site Cergy".
+	Sans index -> FULL TABLE SCAN. Avec index -> INDEX RANGE SCAN + ROWID.
+*/
 
 PROMPT
 PROMPT ========== TEST 1 : ordinateurs WHERE site_id = 1 ==========
@@ -146,17 +141,13 @@ BEGIN bench_query('SANS index site_id', 'SELECT id, nom FROM ordinateurs WHERE s
 PROMPT ----- Recreation index idx_ordi_site -----
 CREATE INDEX idx_ordi_site ON ordinateurs(site_id) TABLESPACE TS_INDEX;
 
+/*
+	TEST 2 : INDEX FONCTIONNEL UPPER(login)
 
-
-
-
--- =============================================================================
--- TEST 2 : INDEX FONCTIONNEL UPPER(login)
--- =============================================================================
--- Recherche case-insensitive sur un login.
--- Sans index fonctionnel : FULL SCAN car UPPER(col) cache le b-tree classique.
--- Avec index fonctionnel : INDEX RANGE SCAN sur le b-tree de la fonction.
-
+	Recherche case-insensitive sur un login.
+	Sans index fonctionnel : FULL SCAN car UPPER(col) cache le b-tree classique.
+	Avec index fonctionnel : INDEX RANGE SCAN sur le b-tree de la fonction.
+*/
 PROMPT
 PROMPT ========== TEST 2 : utilisateurs WHERE UPPER(login) = 'ALICEMARTIN' ==========
 
@@ -184,15 +175,12 @@ BEGIN bench_query('SANS index fonctionnel UPPER(login)',
 
 CREATE INDEX idx_user_login_upper ON utilisateurs(UPPER(login)) TABLESPACE TS_INDEX;
 
+/*
+	TEST 3 : BITMAP INDEX sur est_supprime
 
-
-
-
--- =============================================================================
--- TEST 3 : BITMAP INDEX sur est_supprime
--- =============================================================================
--- Cardinalite 2 (0/1) -> bitmap optimal. Mesure le filtrage rapide
--- des "non supprimes".
+	Cardinalite 2 (0/1) -> bitmap optimal. Mesure le filtrage rapide
+	des "non supprimes".
+*/
 
 PROMPT
 PROMPT ========== TEST 3 : ordinateurs WHERE est_supprime = 0 ==========
@@ -217,19 +205,15 @@ BEGIN bench_query('SANS bitmap',
 
 CREATE BITMAP INDEX idx_bmp_ordi_supprime ON ordinateurs(est_supprime) TABLESPACE TS_INDEX;
 
+/*
+	TEST 4 : CLUSTER vs HEAP
 
-
-
-
-
--- =============================================================================
--- TEST 4 : CLUSTER vs HEAP
--- =============================================================================
--- Requete typique : "tous les ordis et peripheriques d'une meme localisation".
--- Avec cluster : les lignes ordi + periph partageant localisation_id sont
--- co-localisees physiquement => moins de blocs lus.
--- Sans cluster (tables heap classiques) : les lignes sont eparpillees
--- => plus d'I/O.
+	Requete typique : "tous les ordis et peripheriques d'une meme localisation".
+	Avec cluster : les lignes ordi + periph partageant localisation_id sont
+	co-localisees physiquement => moins de blocs lus.
+	Sans cluster (tables heap classiques) : les lignes sont eparpillees
+	=> plus d'I/O.
+*/
 
 PROMPT
 PROMPT ========== TEST 4 : SELECT par localisation -- cluster vs heap ==========
@@ -262,15 +246,13 @@ BEGIN bench_query('SANS cluster (heap)',
 END;
 /
 
+/*
+	TEST 5 : VUE MATERIALISEE vs AGREGATION LIVE
+	mv_stats_parc precompute COUNT(*) GROUP BY (site, etat).
+	Acces direct a la MV : trivial.
+	Agregation live : doit scanner ordinateurs et faire le GROUP BY.
+*/
 
-
-
--- =============================================================================
--- TEST 5 : VUE MATERIALISEE vs AGREGATION LIVE
--- =============================================================================
--- mv_stats_parc precompute COUNT(*) GROUP BY (site, etat).
--- Acces direct a la MV : trivial.
--- Agregation live : doit scanner ordinateurs et faire le GROUP BY.
 
 PROMPT
 PROMPT ========== TEST 5 : stats parc -- MV vs requete live ==========
@@ -298,16 +280,13 @@ BEGIN bench_query('Aggregation live',
   'SELECT s.nom, e.nom, COUNT(*) FROM ordinateurs o JOIN sites s ON o.site_id = s.id LEFT JOIN etats e ON o.etat_id = e.id WHERE o.est_supprime = 0 GROUP BY s.nom, e.nom'); END;
 /
 
+/*
+	TEST 6 : ACCES LOCAL vs DISTANT (db link)
 
+	Compare le cout d'un SELECT local vs un SELECT via db_pau@.
+	NE FONCTIONNE QUE SI le serveur Pau est joignable.
+*/
 
-
-
--- =============================================================================
--- TEST 6 : ACCES LOCAL vs DISTANT (db link)
--- =============================================================================
--- Compare le cout d'un SELECT local vs un SELECT via db_pau@.
--- NE FONCTIONNE QUE SI le serveur Pau est joignable.
--- Si ORA-12154, commenter ce bloc.
 
 PROMPT
 PROMPT ========== TEST 6 : SELECT local vs SELECT distant ==========
@@ -327,17 +306,13 @@ BEGIN
 END;
 /
 
+/*
+	TEST 7 : RECAPITULATIF -- impact des indexes (drop tous puis recreer)
 
-
-
-
--- =============================================================================
--- TEST 7 : RECAPITULATIF -- impact des indexes (drop tous puis recreer)
--- =============================================================================
--- Test global : on mesure une requete complexe (vue_parc_cergy) avec et sans
--- les indexes b-tree principaux.
--- Attention : long si on rebuild tous les indexes. A executer en dernier.
-
+	Test global : on mesure une requete complexe (vue_parc_cergy) avec et sans
+	les indexes b-tree principaux.
+	Attention : long si on rebuild tous les indexes. 
+*/
 PROMPT
 PROMPT ========== TEST 7 : impact global indexes sur vue_parc_cergy ==========
 
@@ -348,6 +323,8 @@ END;
 /
 
 -- Drop des index principaux (b-tree sur ordinateurs)
+PROMPT ---- Drop indexes ordinateurs -----
+
 BEGIN
   DBMS_OUTPUT.PUT_LINE('----- Drop indexes ordinateurs -----');
   FOR ind IN (SELECT index_name FROM user_indexes
