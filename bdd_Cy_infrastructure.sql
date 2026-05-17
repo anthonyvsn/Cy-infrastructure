@@ -43,7 +43,10 @@ SET FEEDBACK OFF
 COLUMN pdb_name NEW_VALUE current_pdb NOPRINT
 SELECT sys_context('USERENV','CON_NAME') AS pdb_name FROM dual;
 COLUMN datafile_dir NEW_VALUE datafile_dir NOPRINT
-SELECT REGEXP_REPLACE(name, '[^\\]+$', '') AS datafile_dir
+-- Regex accepte '\' (Windows) ET '/' (Unix/Linux/Docker).
+-- Sans le '/', le regex ne match rien sur les paths Unix donc &datafile_dir
+-- reste vide => ORA-02236 sur tous les CREATE TABLESPACE.
+SELECT REGEXP_REPLACE(name, '[^/\\]+$', '') AS datafile_dir
   FROM v$datafile
  WHERE con_id = sys_context('USERENV','CON_ID')
    AND ROWNUM = 1;
