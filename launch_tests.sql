@@ -1,21 +1,17 @@
--- =============================================================================
--- LAUNCHER : jeu de test + tests de performance
--- =============================================================================
--- Suppose que le schema (bdd_Cy_infrastructure.sql + tous les pl_sql_*.sql)
--- est deja deploye SUR UN PDB FRAIS (sans donnees ni sequences avancees).
---
--- USAGE :
---   cd c:\Users\VM-Analysis\Desktop\tad\Cy-infrastructure
---   sqlplus ADMIN_CYTECH/cytech2026@//localhost:1521/XE_CERGY @launch_tests.sql
---
--- Pour relancer apres un premier passage :
---   1) En SYS dans le CDB : drop+recreate le PDB (plus simple et propre)
---      ALTER PLUGGABLE DATABASE XE_CERGY CLOSE IMMEDIATE;
---      DROP PLUGGABLE DATABASE XE_CERGY INCLUDING DATAFILES;
---      -- puis CREATE PLUGGABLE DATABASE comme dans README
---   2) Redeployer le schema et les PL/SQL (cf. launch_all.sql)
---   3) Relancer ce script
--- =============================================================================
+/*
+    Ce fichier lance le jeu de test et les tests de performance.
+
+    Commandes d'utilisation :
+        cd c:\Users\...\Cy-infrastructure
+        sqlplus ADMIN_CYTECH/cytech2026@//localhost:1521/XE_CERGY @launch_tests.sql
+
+    Relancer apres un premier passage :
+        1) En SYS dans le CDB : drop+recreate le PDB (plus simple et propre)
+            ALTER PLUGGABLE DATABASE XE_CERGY CLOSE IMMEDIATE;
+            DROP PLUGGABLE DATABASE XE_CERGY INCLUDING DATAFILES;
+        2) lancer launch_all.sql
+        3) Relancer ce script
+*/
 
 SET ECHO OFF
 SET FEEDBACK ON

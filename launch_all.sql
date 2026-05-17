@@ -1,24 +1,13 @@
--- =============================================================================
--- LAUNCHER : installation complete + jeu de test + tests de perf
--- =============================================================================
--- Tout en un. A lancer comme SYS sur un PDB FRAIS (XE_CERGY ou XE_PAU).
---
--- USAGE :
---   cd c:\Users\VM-Analysis\Desktop\tad\Cy-infrastructure
---   sqlplus sys/<mdp>@//localhost:1521/XE_CERGY as sysdba @launch_all.sql
---
--- Le script bdd_Cy_infrastructure.sql bascule mid-execution en ADMIN_CYTECH
--- via CONNECT. Tout ce qui suit s'execute donc en ADMIN_CYTECH/cytech2026.
---
--- Prerequis : le PDB existe deja et est OPEN (voir README.md etape 2).
--- Si tu veux repartir d'un PDB tout neuf, drop+recreate avant de lancer ce
--- script :
---   ALTER PLUGGABLE DATABASE <pdb> CLOSE IMMEDIATE;
---   DROP PLUGGABLE DATABASE <pdb> INCLUDING DATAFILES;
---   CREATE PLUGGABLE DATABASE <pdb> ADMIN USER pdbadmin IDENTIFIED BY pdbpass
---     FILE_NAME_CONVERT = ('<seedpath>', '<pdbpath>');
---   ALTER PLUGGABLE DATABASE <pdb> OPEN;
--- =============================================================================
+/*
+    Ce fichier fait :
+        -> l'installation complète du projet (schema et tous les .sql necessaires)
+        -> lancement du jeu de test
+        -> lancement des tests de performance
+
+    Commandes :
+        cd c:\Users\VM-Analysis\Desktop\tad\Cy-infrastructure
+        sqlplus sys/<mdp>@//localhost:1521/XE_CERGY as sysdba @launch_all.sql
+*/
 
 SET ECHO OFF
 SET FEEDBACK ON
