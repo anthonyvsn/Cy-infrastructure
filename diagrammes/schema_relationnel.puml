@@ -1,14 +1,13 @@
 @startuml schema_relationnel
 ' =============================================================================
 ' Schema relationnel (MLD) -- Projet GLPI CY Tech multi-sites
-' Auteur : equipe GLPI CY Tech
-' Date   : 2026-05-13
+' Cible : Oracle 21c XE, 2 PDBs (XE_CERGY, XE_PAU)
 ' =============================================================================
 ' Convention :
-'   * <attribut>     = cle primaire (PK)
-'   # <attribut>     = cle etrangere (FK)
-'   + <attribut>     = colonne UNIQUE
-'   - <attribut>     = colonne ordinaire
+'   <attribut>  cle primaire (PK) -- rouge gras
+'   #attribut   cle etrangere (FK) -- bleu
+'   +attribut   colonne UNIQUE
+'    attribut   colonne ordinaire
 ' =============================================================================
 
 !define PK(x) <b><color:#B03A2E>x</color></b>
@@ -18,356 +17,389 @@ skinparam shadowing false
 skinparam linetype ortho
 skinparam class {
   BackgroundColor #FDFEFE
-  BorderColor     #2E4053
-  ArrowColor      #5D6D7E
-  FontName        "Courier New"
-  FontSize        11
-}
-skinparam package {
-  BackgroundColor #F7F9F9
-  BorderColor     #ABB2B9
+  BorderColor #34495E
+  HeaderBackgroundColor #D6EAF8
+  AttributeFontSize 11
 }
 
-title MLD -- BDD GLPI CY Tech (Oracle 19c)
+title Schema relationnel -- GLPI CY Tech (modele Oracle multi-sites)
 
-' =====================================================================
-package "TS_USERS : referentiels partages" as PUSERS {
+' =============================================================================
+' REFERENTIELS PARTAGES (TS_USERS)
+' =============================================================================
 
-  entity "sites" as sites {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(100) NOT NULL
-    adresse : VARCHAR2(255)
-    ville : VARCHAR2(100) NOT NULL
-    code_postal : VARCHAR2(10)
-    telephone : VARCHAR2(20)
-    date_creation : DATE
-    date_modification : DATE
-  }
-
-  entity "entites" as entites {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    FK(entite_parent_id) : NUMBER -> entites(id)
-    FK(site_id) : NUMBER NOT NULL -> sites(id)
-    niveau : NUMBER DEFAULT 0
-    nom_complet : VARCHAR2(500)
-    est_recursif : NUMBER(1)
-    date_creation : DATE
-    date_modification : DATE
-  }
-
-  entity "localisations" as locs {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    nom_complet : VARCHAR2(500)
-    FK(entite_id) : NUMBER NOT NULL -> entites(id)
-    FK(localisation_parent_id) : NUMBER -> localisations(id)
-    batiment : VARCHAR2(50)
-    salle : VARCHAR2(20)
-    etage : VARCHAR2(20)
-  }
-
-  entity "fabricants" as fab {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) UNIQUE NOT NULL
-  }
-
-  entity "etats" as etats {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) UNIQUE NOT NULL
-    etat : VARCHAR2(50)
-  }
-
-  entity "types_ordinateur" as tordi {
-    * PK(id) : NUMBER
-    --
-    machine_type : VARCHAR2(255) NOT NULL
-  }
-
-  entity "modeles_ordinateur" as mordi {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    ref_produit : VARCHAR2(255)
-    FK(fabricant_id) : NUMBER -> fabricants(id)
-  }
+class sites <<TS_USERS>> {
+  PK(id) : NUMBER
+  + nom : VARCHAR2(100)
+  adresse : VARCHAR2(255)
+  ville : VARCHAR2(100)
+  code_postal : VARCHAR2(10)
+  telephone : VARCHAR2(20)
+  date_creation : DATE
+  date_modification : DATE
 }
 
-' =====================================================================
-package "TS_USERS : utilisateurs et profils" as PUSERS2 {
-
-  entity "profils" as profils {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) UNIQUE NOT NULL
-    interface : VARCHAR2(50) CHECK in (central,helpdesk)
-    date_creation : DATE
-  }
-
-  entity "utilisateurs" as users {
-    * PK(id) : NUMBER
-    --
-    + login : VARCHAR2(255) UNIQUE NOT NULL
-    mot_de_passe : VARCHAR2(255) NOT NULL
-    nom : VARCHAR2(255)
-    prenom : VARCHAR2(255)
-    email : VARCHAR2(255)
-    telephone : VARCHAR2(50)
-    FK(entite_id) : NUMBER -> entites(id)
-    FK(localisation_id) : NUMBER -> localisations(id)
-    FK(profil_id) : NUMBER -> profils(id)
-    FK(site_id) : NUMBER -> sites(id)
-    langue : VARCHAR2(10) DEFAULT 'fr_FR'
-    est_actif : NUMBER(1) CHECK in (0,1)
-    est_supprime : NUMBER(1) CHECK in (0,1)
-    type_auth : NUMBER DEFAULT 1
-    date_debut : DATE
-    date_fin : DATE
-  }
-
-  entity "profils_utilisateurs" as pu {
-    * PK(id) : NUMBER
-    --
-    FK(utilisateur_id) : NUMBER NOT NULL -> utilisateurs(id)
-    FK(profil_id) : NUMBER NOT NULL -> profils(id)
-    FK(entite_id) : NUMBER NOT NULL -> entites(id)
-    est_recursif : NUMBER(1)
-    est_dynamique : NUMBER(1)
-    UNIQUE(utilisateur_id, profil_id, entite_id)
-  }
-
-  entity "groupes" as groupes {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    FK(entite_id) : NUMBER NOT NULL -> entites(id)
-    FK(groupe_parent_id) : NUMBER -> groupes(id)
-    est_recursif : NUMBER(1)
-    commentaire : VARCHAR2(255)
-  }
+class hierarchy_level <<TS_USERS>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  FK(hierarchy_level_parent_id) : NUMBER
+  FK(site_id) : NUMBER
+  niveau : NUMBER
+  nom_complet : VARCHAR2(500)
+  est_recursif : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
 }
 
-' =====================================================================
-package "TS_MATERIEL_CERGY" as PMAT {
-
-  entity "ordinateurs" as ordi {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    numero_serie : VARCHAR2(255)
-    numero_inventaire : VARCHAR2(255)
-    FK(entite_id) : NUMBER NOT NULL
-    FK(localisation_id) : NUMBER
-    FK(type_ordinateur_id) : NUMBER
-    FK(modele_id) : NUMBER
-    FK(fabricant_id) : NUMBER
-    FK(etat_id) : NUMBER
-    FK(utilisateur_id) : NUMBER
-    FK(groupe_id) : NUMBER
-    FK(technicien_id) : NUMBER
-    FK(site_id) : NUMBER NOT NULL
-    commentaire : VARCHAR2(255)
-    est_supprime : NUMBER(1)
-    est_template : NUMBER(1)
-    date_achat : DATE
-  }
-
-  entity "peripheriques" as periph {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    numero_serie : VARCHAR2(255)
-    type_peripherique : VARCHAR2(100) CHECK (imprimante,souris,clavier,...)
-    FK(entite_id) : NUMBER NOT NULL
-    FK(localisation_id) : NUMBER
-    FK(fabricant_id) : NUMBER
-    FK(etat_id) : NUMBER
-    FK(utilisateur_id) : NUMBER
-    FK(site_id) : NUMBER NOT NULL
-    est_supprime : NUMBER(1)
-  }
-
-  entity "telephones" as tel {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    numero_serie : VARCHAR2(255)
-    numero_tel : VARCHAR2(50)
-    type_telephone : VARCHAR2(50) CHECK in (fixe,mobile,ip)
-    FK(entite_id) : NUMBER NOT NULL
-    FK(localisation_id) : NUMBER
-    FK(fabricant_id) : NUMBER
-    FK(etat_id) : NUMBER
-    FK(utilisateur_id) : NUMBER
-    FK(site_id) : NUMBER NOT NULL
-    service : VARCHAR2(100)
-  }
-
-  entity "logiciels" as log {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    editeur : VARCHAR2(255)
-    FK(fabricant_id) : NUMBER
-    FK(entite_id) : NUMBER
-    est_supprime : NUMBER(1)
-  }
-
-  entity "versions_logiciel" as vlog {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    FK(logiciel_id) : NUMBER NOT NULL
-    FK(etat_id) : NUMBER
-  }
-
-  entity "installations_logiciels" as ilog {
-    * PK(id) : NUMBER
-    --
-    FK(ordinateur_id) : NUMBER NOT NULL
-    FK(version_logiciel_id) : NUMBER NOT NULL
-    date_installation : DATE
-    UNIQUE(ordinateur_id, version_logiciel_id)
-  }
+class localisations <<TS_USERS>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  nom_complet : VARCHAR2(500)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_parent_id) : NUMBER
+  batiment : VARCHAR2(50)
+  salle : VARCHAR2(20)
+  etage : VARCHAR2(20)
+  date_creation : DATE
+  date_modification : DATE
 }
 
-' =====================================================================
-package "TS_NETWORK_CERGY" as PNET {
-
-  entity "types_equip_reseau" as ttreseau {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) UNIQUE NOT NULL
-  }
-
-  entity "equipements_reseau" as eqreseau {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255) NOT NULL
-    numero_serie : VARCHAR2(255)
-    FK(entite_id) : NUMBER NOT NULL
-    FK(localisation_id) : NUMBER
-    FK(type_equip_id) : NUMBER
-    FK(fabricant_id) : NUMBER
-    FK(etat_id) : NUMBER
-    FK(site_id) : NUMBER NOT NULL
-    nb_ports : NUMBER
-  }
-
-  entity "ports_reseau" as port {
-    * PK(id) : NUMBER
-    --
-    nom : VARCHAR2(255)
-    FK(equipement_id) : NUMBER NOT NULL
-    adresse_mac : VARCHAR2(50)
-    type_port : VARCHAR2(20) CHECK in (ethernet,wifi)
-    vitesse : NUMBER
-    est_actif : NUMBER(1)
-  }
+class fabricants <<TS_USERS>> {
+  PK(id) : NUMBER
+  + nom : VARCHAR2(255)
 }
 
-' =====================================================================
-package "TS_USERS : audit" as PAUDIT {
-
-  entity "historique" as hist {
-    * PK(id) : NUMBER
-    --
-    type_objet : VARCHAR2(100) NOT NULL
-    objet_id : NUMBER NOT NULL
-    FK(utilisateur_id) : NUMBER -> utilisateurs(id)
-    champ_modifie : VARCHAR2(255)
-    ancienne_valeur : VARCHAR2(4000)
-    nouvelle_valeur : VARCHAR2(4000)
-    type_action : VARCHAR2(20) CHECK (INSERT,UPDATE,DELETE)
-    date_action : DATE
-  }
+class etats <<TS_USERS>> {
+  PK(id) : NUMBER
+  + nom : VARCHAR2(255)
+  etat : VARCHAR2(50)
 }
 
-' ===================== RELATIONS / CARDINALITES =====================
+class types_ordinateur <<TS_USERS>> {
+  PK(id) : NUMBER
+  machine_type : VARCHAR2(255)
+}
 
-' Hierarchies (auto-references)
-entites      ||--o{ entites      : "parent"
-locs         ||--o{ locs         : "parent"
-groupes      ||--o{ groupes      : "parent"
+class modeles_ordinateur <<TS_USERS>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  ref_produit : VARCHAR2(255)
+  FK(fabricant_id) : NUMBER
+}
 
-' Referentiel <-> entites/localisations
-sites        ||--|{ entites      : "site"
-entites      ||--o{ locs         : "rattache"
-fab          ||--o{ mordi        : "produit"
+class profils <<TS_USERS>> {
+  PK(id) : NUMBER
+  + nom : VARCHAR2(100)
+  interface : VARCHAR2(50)
+}
+
+' =============================================================================
+' UTILISATEURS ET GROUPES (TS_USERS)
+' =============================================================================
+
+class utilisateurs <<TS_USERS>> {
+  PK(id) : NUMBER
+  + login : VARCHAR2(255)
+  mot_de_passe : VARCHAR2(255)
+  nom : VARCHAR2(255)
+  prenom : VARCHAR2(255)
+  email : VARCHAR2(255)
+  telephone : VARCHAR2(50)
+  mobile : VARCHAR2(50)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_id) : NUMBER
+  FK(profil_id) : NUMBER
+  FK(site_id) : NUMBER
+  langue : VARCHAR2(10)
+  est_actif : NUMBER(1)
+  est_supprime : NUMBER(1)
+  type_auth : NUMBER
+  date_debut : DATE
+  date_fin : DATE
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class groupes <<TS_USERS>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  FK(hierarchy_level_id) : NUMBER
+  FK(groupe_parent_id) : NUMBER
+  est_recursif : NUMBER(1)
+  commentaire : VARCHAR2(255)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+' =============================================================================
+' MATERIEL (TS_MATERIEL_CERGY / TS_MATERIEL_PAU sur l'instance Pau)
+' =============================================================================
+
+class ordinateurs <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  numero_serie : VARCHAR2(255)
+  numero_inventaire : VARCHAR2(255)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_id) : NUMBER
+  FK(type_ordinateur_id) : NUMBER
+  FK(modele_id) : NUMBER
+  FK(fabricant_id) : NUMBER
+  FK(etat_id) : NUMBER
+  FK(utilisateur_id) : NUMBER
+  FK(groupe_id) : NUMBER
+  FK(technicien_id) : NUMBER
+  FK(site_id) : NUMBER
+  commentaire : VARCHAR2(255)
+  est_supprime : NUMBER(1)
+  est_template : NUMBER(1)
+  date_achat : DATE
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class peripheriques <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  numero_serie : VARCHAR2(255)
+  type_peripherique : VARCHAR2(100)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_id) : NUMBER
+  FK(fabricant_id) : NUMBER
+  FK(etat_id) : NUMBER
+  FK(utilisateur_id) : NUMBER
+  FK(site_id) : NUMBER
+  commentaire : VARCHAR2(255)
+  est_supprime : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class telephones <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  numero_serie : VARCHAR2(255)
+  numero_tel : VARCHAR2(50)
+  type_telephone : VARCHAR2(50)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_id) : NUMBER
+  FK(fabricant_id) : NUMBER
+  FK(etat_id) : NUMBER
+  FK(utilisateur_id) : NUMBER
+  FK(site_id) : NUMBER
+  service : VARCHAR2(100)
+  commentaire : VARCHAR2(255)
+  est_supprime : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class logiciels <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  editeur : VARCHAR2(255)
+  FK(fabricant_id) : NUMBER
+  FK(hierarchy_level_id) : NUMBER
+  est_supprime : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class versions_logiciel <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  FK(logiciel_id) : NUMBER
+  FK(etat_id) : NUMBER
+  date_creation : DATE
+}
+
+class installations_logiciels <<TS_MATERIEL>> {
+  PK(id) : NUMBER
+  FK(ordinateur_id) : NUMBER
+  FK(version_logiciel_id) : NUMBER
+  date_installation : DATE
+  --
+  UNIQUE(ordinateur_id, version_logiciel_id)
+}
+
+' =============================================================================
+' TABLES CLUSTERED -- co-localisees par localisation_id sur le disque
+' =============================================================================
+
+class ordinateurs_cl <<CLUSTER>> {
+  PK(id) : NUMBER
+  ..memes colonnes que ordinateurs..
+  FK(localisation_id) : NUMBER << cle de cluster >>
+}
+
+class peripheriques_cl <<CLUSTER>> {
+  PK(id) : NUMBER
+  ..memes colonnes que peripheriques..
+  FK(localisation_id) : NUMBER << cle de cluster >>
+}
+
+' =============================================================================
+' RESEAU (TS_NETWORK_CERGY / TS_NETWORK_PAU)
+' =============================================================================
+
+class types_equip_reseau <<TS_NETWORK>> {
+  PK(id) : NUMBER
+  + nom : VARCHAR2(255)
+}
+
+class equipements_reseau <<TS_NETWORK>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  numero_serie : VARCHAR2(255)
+  FK(hierarchy_level_id) : NUMBER
+  FK(localisation_id) : NUMBER
+  FK(type_equip_id) : NUMBER
+  FK(fabricant_id) : NUMBER
+  FK(etat_id) : NUMBER
+  FK(site_id) : NUMBER
+  nb_ports : NUMBER
+  commentaire : VARCHAR2(255)
+  est_supprime : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+class ports_reseau <<TS_NETWORK>> {
+  PK(id) : NUMBER
+  nom : VARCHAR2(255)
+  FK(equipement_id) : NUMBER
+  adresse_mac : VARCHAR2(50)
+  type_port : VARCHAR2(20)
+  vitesse : NUMBER
+  est_actif : NUMBER(1)
+  date_creation : DATE
+  date_modification : DATE
+}
+
+' =============================================================================
+' AUDIT (TS_USERS)
+' =============================================================================
+
+class historique <<TS_USERS>> {
+  PK(id) : NUMBER
+  type_objet : VARCHAR2(100)
+  objet_id : NUMBER
+  FK(utilisateur_id) : NUMBER
+  champ_modifie : VARCHAR2(255)
+  ancienne_valeur : VARCHAR2(4000)
+  nouvelle_valeur : VARCHAR2(4000)
+  type_action : VARCHAR2(20)
+  date_action : DATE
+}
+
+' =============================================================================
+' RELATIONS
+' =============================================================================
+
+' Hierarchies auto-referentes
+hierarchy_level "0..1" --> "*" hierarchy_level : parent
+localisations "0..1" --> "*" localisations : parent
+groupes "0..1" --> "*" groupes : parent
+
+' Sites
+sites "1" <-- "*" hierarchy_level
+sites "1" <-- "*" utilisateurs
+sites "1" <-- "*" ordinateurs
+sites "1" <-- "*" peripheriques
+sites "1" <-- "*" telephones
+sites "1" <-- "*" equipements_reseau
+
+' Localisations
+hierarchy_level "1" <-- "*" localisations
+
+' Referentiels
+fabricants "1" <-- "*" modeles_ordinateur
+fabricants "1" <-- "*" ordinateurs
+fabricants "1" <-- "*" peripheriques
+fabricants "1" <-- "*" telephones
+fabricants "1" <-- "*" equipements_reseau
+fabricants "1" <-- "*" logiciels
+
+etats "1" <-- "*" ordinateurs
+etats "1" <-- "*" peripheriques
+etats "1" <-- "*" telephones
+etats "1" <-- "*" equipements_reseau
+etats "1" <-- "*" versions_logiciel
+
+types_ordinateur "1" <-- "*" ordinateurs
+modeles_ordinateur "1" <-- "*" ordinateurs
 
 ' Utilisateurs
-users        }o--|| sites
-users        }o--|| entites
-users        }o--o| locs
-users        }o--o| profils
-users        ||--o{ pu
-profils      ||--o{ pu
-entites      ||--o{ pu
-groupes      }o--|| entites
+profils "1" <-- "*" utilisateurs
+hierarchy_level "1" <-- "*" utilisateurs
+localisations "0..1" <-- "*" utilisateurs
 
-' Materiel
-sites        ||--o{ ordi
-sites        ||--o{ periph
-sites        ||--o{ tel
-entites      ||--o{ ordi
-entites      ||--o{ periph
-entites      ||--o{ tel
-locs         ||--o{ ordi
-locs         ||--o{ periph
-fab          ||--o{ ordi
-fab          ||--o{ periph
-fab          ||--o{ tel
-etats        ||--o{ ordi
-etats        ||--o{ periph
-etats        ||--o{ tel
-tordi        ||--o{ ordi
-mordi        ||--o{ ordi
-users        ||--o{ ordi         : "affecte"
-users        ||--o{ periph
-users        ||--o{ tel
+' Materiel <-> utilisateurs
+utilisateurs "0..1" <-- "*" ordinateurs : utilisateur_id
+utilisateurs "0..1" <-- "*" ordinateurs : technicien_id
+utilisateurs "0..1" <-- "*" peripheriques
+utilisateurs "0..1" <-- "*" telephones
+
+' Materiel <-> hierarchie / localisation
+hierarchy_level "1" <-- "*" ordinateurs
+hierarchy_level "1" <-- "*" peripheriques
+hierarchy_level "1" <-- "*" telephones
+hierarchy_level "1" <-- "*" equipements_reseau
+hierarchy_level "0..1" <-- "*" logiciels
+
+localisations "0..1" <-- "*" ordinateurs
+localisations "0..1" <-- "*" peripheriques
+localisations "0..1" <-- "*" telephones
+localisations "0..1" <-- "*" equipements_reseau
+
+' Groupes
+groupes "0..1" <-- "*" ordinateurs
+hierarchy_level "1" <-- "*" groupes
 
 ' Logiciels
-log          ||--o{ vlog
-vlog         ||--o{ ilog
-ordi         ||--o{ ilog
+logiciels "1" <-- "*" versions_logiciel
+versions_logiciel "1" <-- "*" installations_logiciels
+ordinateurs "1" <-- "*" installations_logiciels
 
 ' Reseau
-ttreseau     ||--o{ eqreseau
-sites        ||--o{ eqreseau
-entites      ||--o{ eqreseau
-locs         ||--o{ eqreseau
-fab          ||--o{ eqreseau
-etats        ||--o{ eqreseau
-eqreseau     ||--|{ port
+types_equip_reseau "0..1" <-- "*" equipements_reseau
+equipements_reseau "1" <-- "*" ports_reseau
 
-' Audit (polymorphe par chaine -- pas de FK forte)
-hist         }o..o| users        : "auteur"
+' Audit
+utilisateurs "0..1" <-- "*" historique : qui
 
-note bottom of hist
-  Polymorphisme par chaine :
-  (type_objet, objet_id) referencent
-  une ligne d'une table sensible
-  (ordinateurs, utilisateurs, ...).
-  Index compose idx_hist_objet
-  pour les recherches frequentes.
+' Notes pedagogiques
+note bottom of hierarchy_level
+  Remplace l'ancienne table "entites".
+  Auto-reference pour modeliser
+  l'arborescence organisationnelle :
+  CY Tech > Cergy/Pau > Departements
 end note
 
-note right of PUSERS
-  TS_USERS contient toutes les donnees
-  partagees inter-sites (referentiels,
-  utilisateurs, audit).
+note right of profils
+  5 profils : Admin, Technicien,
+  Enseignant, Etudiant, Administration.
+  Table profils_utilisateurs (M:N)
+  supprimee : un utilisateur n'a qu'un
+  seul profil dans le contexte CY Tech.
 end note
 
-note right of PMAT
-  TS_MATERIEL_CERGY heberge le parc
-  Cergy. Une instance miroir
-  TS_MATERIEL_PAU heberge celui de Pau
-  (BDDR + DB link db_pau).
+note right of historique
+  Audit polymorphique :
+  (type_objet, objet_id) pointe vers
+  n'importe quelle table sensible.
+  Alimenté par les triggers via la
+  procedure log_change factorisee.
+end note
+
+note bottom of ordinateurs_cl
+  Tables clustered : memes colonnes que
+  ordinateurs / peripheriques mais
+  stockees ensemble physiquement par
+  localisation_id (cluster
+  cl_materiel_localisation).
+  Utilisees pour les tests de perf
+  (cluster vs heap).
 end note
 
 @enduml

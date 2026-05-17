@@ -1,248 +1,352 @@
 @startuml diagramme_classes_uml
 ' =============================================================================
 ' Diagramme de classes UML metier -- Projet GLPI CY Tech multi-sites
-' Auteur : equipe GLPI CY Tech
-' Date   : 2026-05-13
+' Vue orientee objet du modele de donnees Oracle.
 ' =============================================================================
 
 skinparam class {
   BackgroundColor #FDFDFD
   BorderColor     #2C3E50
-  ArrowColor      #34495E
-  FontName        "Helvetica"
+  HeaderBackgroundColor<<Site>>     #EBF5FB
+  HeaderBackgroundColor<<Hierarchy>> #FDEBD0
+  HeaderBackgroundColor<<User>>     #D6EAF8
+  HeaderBackgroundColor<<Materiel>> #D5F5E3
+  HeaderBackgroundColor<<Logiciel>> #FCF3CF
+  HeaderBackgroundColor<<Reseau>>   #FADBD8
+  HeaderBackgroundColor<<Audit>>    #E8DAEF
+  HeaderBackgroundColor<<Cluster>>  #F2D7D5
+  AttributeFontSize 11
 }
-skinparam package {
-  BackgroundColor #ECF0F1
-  BorderColor     #7F8C8D
-}
+
 skinparam shadowing false
-hide circle
-hide empty members
+skinparam linetype ortho
 
-title Modele metier -- CY Tech parc multi-sites
+title Diagramme de classes UML -- GLPI CY Tech
 
-package "Referentiel" #FFF8DC {
-  class Site {
-    +id : NUMBER
-    nom : VARCHAR2
-    ville : VARCHAR2
-    code_postal : VARCHAR2
+' =============================================================================
+' PAQUET REFERENTIELS (organisation et sites)
+' =============================================================================
+
+package "Referentiel" <<Folder>> {
+
+  class Site <<Site>> {
+    -id : int
+    -nom : String
+    -adresse : String
+    -ville : String
+    -code_postal : String
+    -telephone : String
+    +getInventaireTotal() : int
   }
-  class Entite {
-    +id : NUMBER
-    nom : VARCHAR2
-    niveau : NUMBER
-    nom_complet : VARCHAR2
-    est_recursif : BOOLEAN
+
+  class HierarchyLevel <<Hierarchy>> {
+    -id : int
+    -nom : String
+    -niveau : int
+    -nom_complet : String
+    -est_recursif : boolean
+    +getEnfants() : List<HierarchyLevel>
+    +getCheminComplet() : String
   }
-  class Localisation {
-    +id : NUMBER
-    nom : VARCHAR2
-    batiment : VARCHAR2
-    salle : VARCHAR2
-    etage : VARCHAR2
+
+  class Localisation <<Hierarchy>> {
+    -id : int
+    -nom : String
+    -nom_complet : String
+    -batiment : String
+    -salle : String
+    -etage : String
   }
+
   class Fabricant {
-    +id : NUMBER
-    nom : VARCHAR2 <<unique>>
+    -id : int
+    -nom : String
   }
+
   class Etat {
-    +id : NUMBER
-    nom : VARCHAR2 <<unique>>
-    etat : VARCHAR2
+    -id : int
+    -nom : String
+    -etat : String
   }
+
   class TypeOrdinateur {
-    +id : NUMBER
-    machine_type : VARCHAR2
+    -id : int
+    -machine_type : String
   }
+
   class ModeleOrdinateur {
-    +id : NUMBER
-    nom : VARCHAR2
-    ref_produit : VARCHAR2
+    -id : int
+    -nom : String
+    -ref_produit : String
   }
 }
 
-package "Utilisateurs" #E8F6F3 {
+' Hierarchies auto-referentes
+HierarchyLevel "0..1" --> "*" HierarchyLevel : parent
+Localisation "0..1" --> "*" Localisation : parent
+Site "1" --> "*" HierarchyLevel
+HierarchyLevel "1" --> "*" Localisation
+Fabricant "1" --> "*" ModeleOrdinateur
+
+' =============================================================================
+' PAQUET UTILISATEURS
+' =============================================================================
+
+package "Utilisateurs" <<Folder>> {
+
   class Profil {
-    +id : NUMBER
-    nom : VARCHAR2 <<unique>>
-    interface : ENUM
+    -id : int
+    -nom : String
+    -interface : String
+    --
+    Admin, Technicien, Enseignant,
+    Etudiant, Administration
   }
-  class Utilisateur {
-    +id : NUMBER
-    login : VARCHAR2 <<unique>>
-    mot_de_passe : VARCHAR2
-    nom : VARCHAR2
-    prenom : VARCHAR2
-    email : VARCHAR2
-    langue : VARCHAR2
-    est_actif : BOOLEAN
-    est_supprime : BOOLEAN
-    date_debut : DATE
-    date_fin : DATE
+
+  class Utilisateur <<User>> {
+    -id : int
+    -login : String
+    -mot_de_passe : String
+    -nom : String
+    -prenom : String
+    -email : String
+    -telephone : String
+    -mobile : String
+    -langue : String
+    -est_actif : boolean
+    -est_supprime : boolean
+    -type_auth : int
+    -date_debut : Date
+    -date_fin : Date
+    +getMateriels() : List<Materiel>
+    +getProfilLibelle() : String
   }
-  class ProfilUtilisateur {
-    +id : NUMBER
-    est_recursif : BOOLEAN
-    est_dynamique : BOOLEAN
-  }
-  class Groupe {
-    +id : NUMBER
-    nom : VARCHAR2
-    est_recursif : BOOLEAN
-    commentaire : VARCHAR2
+
+  class Groupe <<User>> {
+    -id : int
+    -nom : String
+    -est_recursif : boolean
+    -commentaire : String
   }
 }
 
-package "Materiel" #FDEDEC {
-  class Ordinateur {
-    +id : NUMBER
-    nom : VARCHAR2
-    numero_serie : VARCHAR2
-    numero_inventaire : VARCHAR2
-    est_supprime : BOOLEAN
-    est_template : BOOLEAN
-    date_achat : DATE
-    commentaire : VARCHAR2
-  }
-  class Peripherique {
-    +id : NUMBER
-    nom : VARCHAR2
-    numero_serie : VARCHAR2
-    type_peripherique : ENUM
-    est_supprime : BOOLEAN
-  }
-  class Telephone {
-    +id : NUMBER
-    nom : VARCHAR2
-    numero_tel : VARCHAR2
-    type_telephone : ENUM
-    service : VARCHAR2
-    est_supprime : BOOLEAN
-  }
-  class Logiciel {
-    +id : NUMBER
-    nom : VARCHAR2
-    editeur : VARCHAR2
-    est_supprime : BOOLEAN
-  }
-  class VersionLogiciel {
-    +id : NUMBER
-    nom : VARCHAR2
-  }
-  class InstallationLogiciel {
-    +id : NUMBER
-    date_installation : DATE
-  }
-}
+Profil "1" --> "*" Utilisateur
+HierarchyLevel "1" --> "*" Utilisateur
+HierarchyLevel "1" --> "*" Groupe
+Site "1" --> "*" Utilisateur
+Localisation "0..1" --> "*" Utilisateur
+Groupe "0..1" --> "*" Groupe : parent
 
-package "Reseau" #EAF2F8 {
-  class TypeEquipementReseau {
-    +id : NUMBER
-    nom : VARCHAR2 <<unique>>
+' =============================================================================
+' PAQUET MATERIEL (heritage logique : ordi / periph / tel)
+' =============================================================================
+
+package "Materiel" <<Folder>> {
+
+  abstract class Materiel <<Materiel>> {
+    #id : int
+    #nom : String
+    #numero_serie : String
+    #commentaire : String
+    #est_supprime : boolean
+    #date_creation : Date
+    #date_modification : Date
+    +affecter(u : Utilisateur)
+    +liberer()
+    +changerEtat(e : Etat)
   }
-  class EquipementReseau {
-    +id : NUMBER
-    nom : VARCHAR2
-    numero_serie : VARCHAR2
-    nb_ports : NUMBER
-    est_supprime : BOOLEAN
+
+  class Ordinateur <<Materiel>> {
+    -numero_inventaire : String
+    -est_template : boolean
+    -date_achat : Date
+    +getLogicielsInstalles() : List<Installation>
+    +installerLogiciel(v : VersionLogiciel)
   }
-  class PortReseau {
-    +id : NUMBER
-    nom : VARCHAR2
-    adresse_mac : VARCHAR2
-    type_port : ENUM
-    vitesse : NUMBER
-    est_actif : BOOLEAN
+
+  class Peripherique <<Materiel>> {
+    -type_peripherique : String
+    --
+    imprimante, souris, clavier,
+    videoprojecteur, ecran, autre
+  }
+
+  class Telephone <<Materiel>> {
+    -numero_tel : String
+    -type_telephone : String
+    -service : String
+    --
+    fixe, mobile, ip
   }
 }
 
-package "Audit" #F5EEF8 {
-  class Historique {
-    +id : NUMBER
-    type_objet : VARCHAR2
-    objet_id : NUMBER
-    champ_modifie : VARCHAR2
-    ancienne_valeur : VARCHAR2
-    nouvelle_valeur : VARCHAR2
-    type_action : ENUM
-    date_action : DATE
+Materiel <|-- Ordinateur
+Materiel <|-- Peripherique
+Materiel <|-- Telephone
+
+Site "1" --> "*" Materiel
+HierarchyLevel "1" --> "*" Materiel
+Localisation "0..1" --> "*" Materiel
+Fabricant "1" --> "*" Materiel
+Etat "1" --> "*" Materiel
+Utilisateur "0..1" --> "*" Materiel : possede
+Utilisateur "0..1" --> "*" Ordinateur : technicien
+TypeOrdinateur "1" --> "*" Ordinateur
+ModeleOrdinateur "1" --> "*" Ordinateur
+Groupe "0..1" --> "*" Ordinateur
+
+' =============================================================================
+' PAQUET LOGICIELS
+' =============================================================================
+
+package "Logiciels" <<Folder>> {
+
+  class Logiciel <<Logiciel>> {
+    -id : int
+    -nom : String
+    -editeur : String
+    -est_supprime : boolean
+  }
+
+  class VersionLogiciel <<Logiciel>> {
+    -id : int
+    -nom : String
+  }
+
+  class InstallationLogiciel <<Logiciel>> {
+    -id : int
+    -date_installation : Date
   }
 }
 
-' ----- Hierarchies (auto-references) ---------------------------------------
-Entite        "1" -- "0..*" Entite       : parent <
-Localisation  "1" -- "0..*" Localisation : parent <
-Groupe        "1" -- "0..*" Groupe       : parent <
+Logiciel "1" --> "*" VersionLogiciel
+VersionLogiciel "1" --> "*" InstallationLogiciel
+Ordinateur "1" --> "*" InstallationLogiciel
+Etat "0..1" --> "*" VersionLogiciel
+Fabricant "1" --> "*" Logiciel
 
-' ----- Referentiel <-> autres -----------------------------------------------
-Site         "1" -- "1..*" Entite
-Entite       "1" -- "0..*" Localisation
-Fabricant    "1" -- "0..*" ModeleOrdinateur
+' =============================================================================
+' PAQUET RESEAU
+' =============================================================================
 
-' ----- Utilisateurs ---------------------------------------------------------
-Utilisateur  "1" -- "0..*" ProfilUtilisateur
-Profil       "1" -- "0..*" ProfilUtilisateur
-Entite       "1" -- "0..*" ProfilUtilisateur
-Utilisateur  "*" -- "1" Site
-Utilisateur  "*" -- "1" Entite
-Utilisateur  "*" -- "0..1" Localisation
-Utilisateur  "*" -- "0..1" Profil
-Groupe       "*" -- "1" Entite
+package "Reseau" <<Folder>> {
 
-' ----- Materiel : associations principales ----------------------------------
-Ordinateur     "*" -- "1" Site
-Ordinateur     "*" -- "1" Entite
-Ordinateur     "*" -- "0..1" Localisation
-Ordinateur     "*" -- "0..1" Utilisateur
-Ordinateur     "*" -- "0..1" Fabricant
-Ordinateur     "*" -- "0..1" Etat
-Ordinateur     "*" -- "0..1" TypeOrdinateur
-Ordinateur     "*" -- "0..1" ModeleOrdinateur
+  class TypeEquipReseau <<Reseau>> {
+    -id : int
+    -nom : String
+    --
+    Switch, Routeur WiFi, Borne WiFi
+  }
 
-Peripherique   "*" -- "1" Site
-Peripherique   "*" -- "1" Entite
-Peripherique   "*" -- "0..1" Utilisateur
-Peripherique   "*" -- "0..1" Fabricant
+  class EquipementReseau <<Reseau>> {
+    -id : int
+    -nom : String
+    -numero_serie : String
+    -nb_ports : int
+    -est_supprime : boolean
+    +getPortsActifs() : int
+    +getTauxOccupation() : float
+  }
 
-Telephone      "*" -- "1" Site
-Telephone      "*" -- "1" Entite
+  class PortReseau <<Reseau>> {
+    -id : int
+    -nom : String
+    -adresse_mac : String
+    -type_port : String
+    -vitesse : int
+    -est_actif : boolean
+    --
+    ethernet, wifi
+  }
+}
 
-Logiciel       "1" -- "0..*" VersionLogiciel
-VersionLogiciel "1" -- "0..*" InstallationLogiciel
-Ordinateur     "1" -- "0..*" InstallationLogiciel
+TypeEquipReseau "0..1" --> "*" EquipementReseau
+EquipementReseau "1" --> "*" PortReseau
+Site "1" --> "*" EquipementReseau
+HierarchyLevel "1" --> "*" EquipementReseau
+Localisation "0..1" --> "*" EquipementReseau
+Fabricant "1" --> "*" EquipementReseau
+Etat "1" --> "*" EquipementReseau
 
-' ----- Reseau --------------------------------------------------------------
-EquipementReseau "*" -- "1" Site
-EquipementReseau "*" -- "0..1" TypeEquipementReseau
-EquipementReseau "1" -- "0..*" PortReseau
+' =============================================================================
+' PAQUET AUDIT (polymorphique)
+' =============================================================================
 
-' ----- Audit (polymorphe) --------------------------------------------------
-Historique ..> Ordinateur        : type_objet = "ordinateurs"
-Historique ..> Utilisateur       : type_objet = "utilisateurs"
-Historique ..> EquipementReseau  : type_objet = "equipements_reseau"
+package "Audit" <<Folder>> {
 
-' ----- Notes pedagogiques --------------------------------------------------
-note top of Entite
-  Hierarchie recursive
-  CY Tech > Cergy > Informatique
-  niveau = profondeur dans l'arbre
-  nom_complet = chemin concatene
+  class Historique <<Audit>> {
+    -id : int
+    -type_objet : String
+    -objet_id : int
+    -champ_modifie : String
+    -ancienne_valeur : String
+    -nouvelle_valeur : String
+    -type_action : String
+    -date_action : Date
+    --
+    INSERT, UPDATE, DELETE
+  }
+}
+
+Utilisateur "0..1" --> "*" Historique : auteur
+
+' =============================================================================
+' OPTIMISATION : tables clustered
+' =============================================================================
+
+package "Cluster (optimisation)" <<Folder>> {
+
+  class OrdinateurCl <<Cluster>> {
+    Memes attributs que Ordinateur
+    --
+    Co-localise physiquement
+    avec PeripheriqueCl par
+    localisation_id (cluster
+    cl_materiel_localisation).
+  }
+
+  class PeripheriqueCl <<Cluster>> {
+    Memes attributs que Peripherique
+  }
+}
+
+Ordinateur ..> OrdinateurCl : synchronise (perf)
+Peripherique ..> PeripheriqueCl : synchronise (perf)
+
+' =============================================================================
+' Notes pedagogiques
+' =============================================================================
+
+note top of HierarchyLevel
+  Anciennement "Entites".
+  Renomme pour insister sur le fait
+  qu'il s'agit d'une structure
+  hierarchique organisationnelle.
+end note
+
+note bottom of Profil
+  Profils applicatifs (couche GLPI),
+  distincts des roles Oracle
+  (R_ADMIN, R_TECH_CERGY, ...).
+  La table profils_utilisateurs M:N
+  a ete supprimee : un user n'a
+  qu'un seul profil chez CY Tech.
+end note
+
+note right of Materiel
+  Hierarchie de classes pure UML.
+  En base : 3 tables distinctes
+  (ordinateurs, peripheriques,
+  telephones) au lieu d'un pattern
+  polymorphique GLPI cassant les FK.
 end note
 
 note bottom of Historique
-  Polymorphisme par chaine :
-  (type_objet, objet_id) pointe vers
-  n'importe quelle table sensible.
-  Choix GLPI : evite N tables d'audit.
-end note
-
-note right of Site
-  2 instances :
-  - Cergy (id=1)  -> XE_CERGY
-  - Pau   (id=2)  -> XE_PAU
-  Base repartie via db link.
+  Polymorphisme controle :
+  (type_objet, objet_id) pointe
+  vers n'importe quel item sensible.
+  Alimente par les triggers
+  d'audit (proc log_change).
 end note
 
 @enduml
