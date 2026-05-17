@@ -4,6 +4,5 @@ diagrammes/*.svg
 diagrammes/*.pdf
 
 # Local config / IDE
-.claude/
 .vscode/
 .idea/
