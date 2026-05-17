@@ -1,185 +1,178 @@
 @startuml deploiement_bddr
 ' =============================================================================
-' Diagramme de deploiement BDDR -- Projet GLPI CY Tech multi-sites
-' Cible : Oracle 21c XE, 2 PDBs sur 2 sites (Cergy, Pau)
+' Diagramme de deploiement BDDR -- GLPI CY Tech
+' 2 sites (Cergy + Pau), 2 PDB Oracle 21c XE relies par DB links
 ' =============================================================================
 
+!theme plain
+skinparam backgroundColor #FAFBFC
 skinparam shadowing false
 skinparam linetype polyline
+skinparam roundcorner 8
+skinparam padding 4
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 12
+skinparam ArrowColor #5D6D7E
+
 skinparam node {
-  BackgroundColor #FDFEFE
-  BorderColor     #34495E
+  BackgroundColor #FFFFFF
+  BorderColor #34495E
+  BorderThickness 2
 }
+
 skinparam database {
   BackgroundColor #D6EAF8
-  BorderColor     #2874A6
+  BorderColor #2874A6
+  FontColor #1A5276
+  FontStyle bold
 }
+
 skinparam component {
   BackgroundColor #FCF3CF
-  BorderColor     #B7950B
+  BorderColor #B7950B
 }
+
 skinparam folder {
   BackgroundColor #D5F5E3
-  BorderColor     #1E8449
+  BorderColor #1E8449
 }
 
-title Architecture BDDR -- GLPI CY Tech (Cergy + Pau)
+skinparam actor {
+  BackgroundColor #FAD7A0
+  BorderColor #B9770E
+}
+
+title <size:18>**Architecture BDDR — GLPI CY Tech**</size>\n<size:11><i>2 instances Oracle XE 21c reparties sur Cergy et Pau</i></size>
 
 ' =============================================================================
-' SITE CERGY
+' CERGY (gauche)
 ' =============================================================================
+node "**CY Tech — Cergy**\n<size:10><i>Site du Parc + Fermat</i></size>" as N_CERGY #E8F4FD {
 
-node "Site CY Tech Cergy\n(Bat. Condorcet / Cauchy / Turing / Fermat)" as CERGY_SITE #EBF5FB {
+  database "**Oracle XE 21c**\n<size:10>CDB cergy</size>" as DB_C {
 
-  database "CDB Oracle XE 21c" as CDB_CERGY {
+    folder "PDB **XE_CERGY**" as PDB_C #FFFFFF {
 
-    folder "PDB XE_CERGY" as PDB_CERGY {
-
-      component "Schema ADMIN_CYTECH" as SCH_CERGY {
-        [Referentiels\n(sites, hierarchy_level,\nlocalisations, profils,\nfabricants, etats...)] as REF_CERGY
-        [Utilisateurs + Groupes] as USERS_CERGY
-        [Materiel Cergy\n(ordinateurs, peripheriques,\ntelephones, logiciels...)] as MAT_CERGY
-        [Reseau Cergy\n(equipements, ports)] as NET_CERGY
-        [Cluster\ncl_materiel_localisation\n+ ordinateurs_cl\n+ peripheriques_cl] as CL_CERGY
-        [Historique (audit)] as HIST_CERGY
+      component "**Schema ADMIN_CYTECH**\n<size:10>(donnees + logique)</size>" as S_C {
+        [Referentiels\n(sites, hierarchy_level,\nlocs, fabricants, etats)]
+        [Utilisateurs + Groupes]
+        [Materiel Cergy\n(ordis, periph, tel,\nlogiciels)]
+        [Reseau Cergy\n(equipements + ports)]
+        [**Cluster**\ncl_materiel_localisation\n+ tables _cl]
+        [Historique (audit)]
       }
 
-      component "Triggers + Packages PL/SQL" as PLSQL_CERGY {
-        [Triggers d'audit\n(log_change)] as TRG_CERGY
-        [PKG_PARC_INFO,\nPKG_STATS, PKG_RESEAU,\nPKG_MAINTENANCE\n(PRAGMA AUTONOMOUS)] as PKG_CERGY
+      component "**Triggers + Packages**" as PL_C {
+        [42 triggers\n(audit, validation,\nINSTEAD OF)]
+        [PKG_PARC_INFO\nPKG_STATS\nPKG_RESEAU\nPKG_MAINTENANCE]
       }
 
-      component "Vues" as VUES_CERGY {
-        [vue_parc_cergy,\nvue_parc_pau (synonym),\nvue_parc_global (UNION ALL),\nvue_parc_global_v2 (enrichie)] as V_CERGY
-        [mv_stats_parc\n(vue materialisee)] as MV_CERGY
+      component "**Vues**" as V_C {
+        [vue_parc_cergy\nvue_parc_global]
+        [mv_stats_parc\n<i>(materialisee)</i>]
       }
     }
 
-    folder "Tablespaces" as TS_CERGY {
-      [TS_MATERIEL_CERGY] as TM_C
-      [TS_NETWORK_CERGY]  as TN_C
-      [TS_USERS]          as TU_C
-      [TS_INDEX]          as TI_C
-      [TS_TEMP]           as TT_C
+    folder "**Tablespaces Cergy**" as TS_C {
+      [TS_MATERIEL_CERGY]
+      [TS_NETWORK_CERGY]
+      [TS_USERS]
+      [TS_INDEX]
+      [TS_TEMP]
     }
   }
 }
 
 ' =============================================================================
-' SITE PAU
+' PAU (droite)
 ' =============================================================================
+node "**CY Tech — Pau**\n<size:10><i>Batiment PAU</i></size>" as N_PAU #FDEBD0 {
 
-node "Site CY Tech Pau\n(Bat. PAU)" as PAU_SITE #EBF5FB {
+  database "**Oracle XE 21c**\n<size:10>CDB pau</size>" as DB_P {
 
-  database "CDB Oracle XE 21c" as CDB_PAU {
+    folder "PDB **XE_PAU**" as PDB_P #FFFFFF {
 
-    folder "PDB XE_PAU" as PDB_PAU {
-
-      component "Schema ADMIN_CYTECH" as SCH_PAU {
-        [Materiel Pau\n(ordinateurs, peripheriques,\ntelephones, logiciels...)] as MAT_PAU
-        [Reseau Pau\n(equipements, ports)] as NET_PAU
-        [Historique local] as HIST_PAU
+      component "**Schema ADMIN_CYTECH**" as S_P {
+        [Materiel Pau\n(ordis, periph, tel,\nlogiciels)]
+        [Reseau Pau\n(equipements + ports)]
+        [Historique local]
       }
 
-      component "Vues materialisees\nrepliquees depuis Cergy" as MV_PAU {
-        [mv_fabricants,\nmv_etats, mv_sites,\nmv_utilisateurs\nREFRESH ON DEMAND] as MVS_PAU
+      component "**MV repliquees depuis Cergy**" as MV_P {
+        [mv_fabricants\nmv_etats\nmv_sites\nmv_utilisateurs\n<i>REFRESH ON DEMAND</i>]
       }
 
-      component "Triggers + Packages PL/SQL\n(memes que Cergy)" as PLSQL_PAU {
-        [Audit + validation\n+ packages metier] as PKG_PAU
+      component "**Triggers + Packages**\n<size:10>(memes que Cergy)</size>" as PL_P {
+        [Audit + validation\n+ packages metier]
       }
     }
 
-    folder "Tablespaces" as TS_PAU {
-      [TS_MATERIEL_PAU]   as TM_P
-      [TS_NETWORK_PAU]    as TN_P
-      [TS_USERS]          as TU_P
-      [TS_INDEX]          as TI_P
-      [TS_TEMP]           as TT_P
+    folder "**Tablespaces Pau**" as TS_P {
+      [TS_MATERIEL_PAU]
+      [TS_NETWORK_PAU]
+      [TS_USERS]
+      [TS_INDEX]
+      [TS_TEMP]
     }
   }
 }
 
 ' =============================================================================
-' UTILISATEURS / ACTEURS
+' ACTEURS (en bas)
 ' =============================================================================
-
-actor "ADMIN_CYTECH\n(R_ADMIN)" as ADMIN
-actor "TECH_CERGY\n(R_TECH_CERGY)" as TC
-actor "TECH_PAU\n(R_TECH_PAU)" as TP
-actor "USER_RO\n(R_CONSULTATION)" as RO
-
-' =============================================================================
-' LIENS BDDR
-' =============================================================================
-
-' DB Link Cergy -> Pau (interrogation distante)
-PDB_CERGY -down-> PDB_PAU : "DB link db_pau\n(CONNECT TO TECH_PAU)"
-PDB_PAU   -down-> PDB_CERGY : "DB link db_cergy\n(CONNECT TO TECH_CERGY)"
-
-' Vues globales
-V_CERGY ..> MAT_CERGY : local
-V_CERGY ..> MAT_PAU   : via db_pau
-
-' Replication des referentiels
-REF_CERGY -[#1E8449,dashed]down-> MVS_PAU : "Replication\nREFRESH ON DEMAND\n(DBMS_MVIEW.REFRESH)"
-
-' Acces utilisateurs
-ADMIN --> PDB_CERGY : "DDL + DML\nUNLIMITED TABLESPACE"
-ADMIN --> PDB_PAU   : "DDL + DML\nUNLIMITED TABLESPACE"
-TC    --> PDB_CERGY : "CRUD parc Cergy"
-TP    --> PDB_PAU   : "CRUD parc Pau"
-RO    --> PDB_CERGY : "SELECT vues uniquement"
-
-' Mapping tablespaces -> donnees
-MAT_CERGY -[#888,dotted]-> TM_C
-NET_CERGY -[#888,dotted]-> TN_C
-REF_CERGY -[#888,dotted]-> TU_C
-MAT_PAU   -[#888,dotted]-> TM_P
-NET_PAU   -[#888,dotted]-> TN_P
+together {
+  actor "**ADMIN_CYTECH**\n<size:9>R_ADMIN</size>" as A_ADMIN
+  actor "**TECH_CERGY**\n<size:9>R_TECH_CERGY</size>" as A_TC
+  actor "**TECH_PAU**\n<size:9>R_TECH_PAU</size>" as A_TP
+  actor "**USER_RO**\n<size:9>R_CONSULTATION</size>" as A_RO
+}
 
 ' =============================================================================
-' NOTES PEDAGOGIQUES
+' LIENS BDDR (au centre)
 ' =============================================================================
+PDB_C <-[#2874A6,thickness=2]-> PDB_P : **DB links bidirectionnels**\n<size:10>db_pau   (Cergy → Pau)\ndb_cergy (Pau → Cergy)</size>
 
-note top of PDB_CERGY
-  PDB Cergy = donnees + logique
-  + audit global. Sert aussi de
-  source pour la replication des
-  referentiels vers Pau.
+S_C -[#1E8449,dashed,thickness=2]-> MV_P : **Replication**\n<size:10>DBMS_MVIEW.REFRESH</size>
+
+' =============================================================================
+' ACCES UTILISATEURS
+' =============================================================================
+A_ADMIN -[#B9770E]-> PDB_C : DDL + DML
+A_ADMIN -[#B9770E]-> PDB_P : DDL + DML
+A_TC    -[#229954]-> PDB_C : CRUD parc Cergy
+A_TP    -[#C0392B]-> PDB_P : CRUD parc Pau
+A_RO    -[#7D3C98,dashed]-> V_C : SELECT sur vues
+
+' =============================================================================
+' LIENS DONNEES <-> TABLESPACES (discrets)
+' =============================================================================
+S_C -[#888,dotted]-> TS_C
+S_P -[#888,dotted]-> TS_P
+
+' =============================================================================
+' NOTES
+' =============================================================================
+note bottom of PDB_C
+  <b>Site maitre</b> :
+  - heberge les referentiels (source unique)
+  - audit global
+  - script <i>setup_bddr.sql</i> cree les
+    DB links et synonymes
 end note
 
-note top of PDB_PAU
-  PDB Pau = mat. et reseau locaux.
-  Les referentiels sont consommes
-  via des vues materialisees
-  rafraichies depuis Cergy.
+note bottom of PDB_P
+  <b>Site esclave</b> :
+  - materiel et reseau locaux
+  - referentiels recus en replication
+  - peut fonctionner en mode degrade
+    si le lien vers Cergy tombe
 end note
 
-note bottom of V_CERGY
-  vue_parc_global utilise db_pau
-  via UNION ALL. Un trigger
-  INSTEAD OF redirige les INSERT
-  vers la bonne instance selon
-  site_id (1=Cergy, 2=Pau).
-end note
-
-note bottom of MVS_PAU
-  Approche pull : Pau interroge
-  Cergy pour repliquer fabricants,
-  etats, sites, utilisateurs.
-  Rafraichissement manuel par
-  DBMS_MVIEW.REFRESH ou periodique
-  via DBMS_SCHEDULER.
-end note
-
-note right of CL_CERGY
-  Cluster physique :
-  ordinateurs_cl et peripheriques_cl
-  partageant une meme localisation_id
-  sont stockes ensemble sur disque
-  -> gain de perf sur les SELECT
-  par localisation.
-end note
+legend right
+|<#E8F4FD>     | Site Cergy |
+|<#FDEBD0>     | Site Pau |
+|<#D5F5E3>     | Tablespaces |
+|<#FCF3CF>     | Composants logiques |
+endlegend
 
 @enduml

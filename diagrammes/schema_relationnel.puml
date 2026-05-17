@@ -1,307 +1,259 @@
 @startuml schema_relationnel
 ' =============================================================================
-' Schema relationnel (MLD) -- Projet GLPI CY Tech multi-sites
-' Cible : Oracle 21c XE, 2 PDBs (XE_CERGY, XE_PAU)
-' =============================================================================
-' Convention :
-'   <attribut>  cle primaire (PK) -- rouge gras
-'   #attribut   cle etrangere (FK) -- bleu
-'   +attribut   colonne UNIQUE
-'    attribut   colonne ordinaire
+' Schema relationnel (MLD) -- GLPI CY Tech multi-sites
+' Version visuellement aeree : groupes par domaine, FK explicites,
+' attributs simplifies (PK / FK / colonnes-cles uniquement).
 ' =============================================================================
 
-!define PK(x) <b><color:#B03A2E>x</color></b>
-!define FK(x) <color:#21618C>x</color>
-
+!theme plain
+skinparam backgroundColor #FAFBFC
 skinparam shadowing false
-skinparam linetype ortho
+skinparam linetype polyline
+skinparam roundcorner 6
+skinparam padding 4
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 11
+skinparam ArrowColor #5D6D7E
+skinparam ArrowFontColor #5D6D7E
+
 skinparam class {
-  BackgroundColor #FDFEFE
-  BorderColor #34495E
-  HeaderBackgroundColor #D6EAF8
-  AttributeFontSize 11
+  BorderThickness 1
+  FontStyle bold
+  AttributeFontStyle plain
+  AttributeFontSize 10
 }
 
-title Schema relationnel -- GLPI CY Tech (modele Oracle multi-sites)
+' Palette par domaine
+
+title <size:18>**Schema relationnel — GLPI CY Tech (Oracle multi-sites)**</size>\n<size:11><i>PK en gras • FK en italique • Couleur = domaine fonctionnel</i></size>
 
 ' =============================================================================
-' REFERENTIELS PARTAGES (TS_USERS)
+' BLOC ORGANISATION
 ' =============================================================================
+together {
+  class sites <<orga>> #FDEBD0 {
+    **+ id**
+    nom
+    ville, adresse
+    code_postal, telephone
+  }
 
-class sites <<TS_USERS>> {
-  PK(id) : NUMBER
-  + nom : VARCHAR2(100)
-  adresse : VARCHAR2(255)
-  ville : VARCHAR2(100)
-  code_postal : VARCHAR2(10)
-  telephone : VARCHAR2(20)
-  date_creation : DATE
-  date_modification : DATE
-}
+  class hierarchy_level <<orga>> #FDEBD0 {
+    **+ id**
+    nom
+    //#parent_id//
+    //#site_id//
+    niveau, nom_complet
+  }
 
-class hierarchy_level <<TS_USERS>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  FK(hierarchy_level_parent_id) : NUMBER
-  FK(site_id) : NUMBER
-  niveau : NUMBER
-  nom_complet : VARCHAR2(500)
-  est_recursif : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class localisations <<TS_USERS>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  nom_complet : VARCHAR2(500)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_parent_id) : NUMBER
-  batiment : VARCHAR2(50)
-  salle : VARCHAR2(20)
-  etage : VARCHAR2(20)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class fabricants <<TS_USERS>> {
-  PK(id) : NUMBER
-  + nom : VARCHAR2(255)
-}
-
-class etats <<TS_USERS>> {
-  PK(id) : NUMBER
-  + nom : VARCHAR2(255)
-  etat : VARCHAR2(50)
-}
-
-class types_ordinateur <<TS_USERS>> {
-  PK(id) : NUMBER
-  machine_type : VARCHAR2(255)
-}
-
-class modeles_ordinateur <<TS_USERS>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  ref_produit : VARCHAR2(255)
-  FK(fabricant_id) : NUMBER
-}
-
-class profils <<TS_USERS>> {
-  PK(id) : NUMBER
-  + nom : VARCHAR2(100)
-  interface : VARCHAR2(50)
+  class localisations <<orga>> #FDEBD0 {
+    **+ id**
+    nom, batiment
+    salle, etage
+    //#hierarchy_level_id//
+    //#localisation_parent_id//
+  }
 }
 
 ' =============================================================================
-' UTILISATEURS ET GROUPES (TS_USERS)
+' BLOC REFERENTIELS
 ' =============================================================================
+together {
+  class fabricants <<ref>> #E8F4FD {
+    **+ id**
+    nom (UNIQUE)
+  }
 
-class utilisateurs <<TS_USERS>> {
-  PK(id) : NUMBER
-  + login : VARCHAR2(255)
-  mot_de_passe : VARCHAR2(255)
-  nom : VARCHAR2(255)
-  prenom : VARCHAR2(255)
-  email : VARCHAR2(255)
-  telephone : VARCHAR2(50)
-  mobile : VARCHAR2(50)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_id) : NUMBER
-  FK(profil_id) : NUMBER
-  FK(site_id) : NUMBER
-  langue : VARCHAR2(10)
-  est_actif : NUMBER(1)
-  est_supprime : NUMBER(1)
-  type_auth : NUMBER
-  date_debut : DATE
-  date_fin : DATE
-  date_creation : DATE
-  date_modification : DATE
-}
+  class etats <<ref>> #E8F4FD {
+    **+ id**
+    nom (UNIQUE)
+    etat
+  }
 
-class groupes <<TS_USERS>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  FK(hierarchy_level_id) : NUMBER
-  FK(groupe_parent_id) : NUMBER
-  est_recursif : NUMBER(1)
-  commentaire : VARCHAR2(255)
-  date_creation : DATE
-  date_modification : DATE
+  class types_ordinateur <<ref>> #E8F4FD {
+    **+ id**
+    machine_type
+  }
+
+  class modeles_ordinateur <<ref>> #E8F4FD {
+    **+ id**
+    nom, ref_produit
+    //#fabricant_id//
+  }
+
+  class profils <<ref>> #E8F4FD {
+    **+ id**
+    nom (UNIQUE)
+    interface
+  }
 }
 
 ' =============================================================================
-' MATERIEL (TS_MATERIEL_CERGY / TS_MATERIEL_PAU sur l'instance Pau)
+' BLOC UTILISATEURS
 ' =============================================================================
+together {
+  class utilisateurs <<users>> #FAD7A0 {
+    **+ id**
+    login (UNIQUE)
+    nom, prenom
+    email, mot_de_passe
+    //#hierarchy_level_id//
+    //#profil_id//
+    //#site_id//
+    est_actif, est_supprime
+  }
 
-class ordinateurs <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  numero_serie : VARCHAR2(255)
-  numero_inventaire : VARCHAR2(255)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_id) : NUMBER
-  FK(type_ordinateur_id) : NUMBER
-  FK(modele_id) : NUMBER
-  FK(fabricant_id) : NUMBER
-  FK(etat_id) : NUMBER
-  FK(utilisateur_id) : NUMBER
-  FK(groupe_id) : NUMBER
-  FK(technicien_id) : NUMBER
-  FK(site_id) : NUMBER
-  commentaire : VARCHAR2(255)
-  est_supprime : NUMBER(1)
-  est_template : NUMBER(1)
-  date_achat : DATE
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class peripheriques <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  numero_serie : VARCHAR2(255)
-  type_peripherique : VARCHAR2(100)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_id) : NUMBER
-  FK(fabricant_id) : NUMBER
-  FK(etat_id) : NUMBER
-  FK(utilisateur_id) : NUMBER
-  FK(site_id) : NUMBER
-  commentaire : VARCHAR2(255)
-  est_supprime : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class telephones <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  numero_serie : VARCHAR2(255)
-  numero_tel : VARCHAR2(50)
-  type_telephone : VARCHAR2(50)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_id) : NUMBER
-  FK(fabricant_id) : NUMBER
-  FK(etat_id) : NUMBER
-  FK(utilisateur_id) : NUMBER
-  FK(site_id) : NUMBER
-  service : VARCHAR2(100)
-  commentaire : VARCHAR2(255)
-  est_supprime : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class logiciels <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  editeur : VARCHAR2(255)
-  FK(fabricant_id) : NUMBER
-  FK(hierarchy_level_id) : NUMBER
-  est_supprime : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class versions_logiciel <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  FK(logiciel_id) : NUMBER
-  FK(etat_id) : NUMBER
-  date_creation : DATE
-}
-
-class installations_logiciels <<TS_MATERIEL>> {
-  PK(id) : NUMBER
-  FK(ordinateur_id) : NUMBER
-  FK(version_logiciel_id) : NUMBER
-  date_installation : DATE
-  --
-  UNIQUE(ordinateur_id, version_logiciel_id)
+  class groupes <<users>> #FAD7A0 {
+    **+ id**
+    nom
+    //#hierarchy_level_id//
+    //#groupe_parent_id//
+  }
 }
 
 ' =============================================================================
-' TABLES CLUSTERED -- co-localisees par localisation_id sur le disque
+' BLOC MATERIEL
 ' =============================================================================
+together {
+  class ordinateurs <<mat>> #D5F5E3 {
+    **+ id**
+    nom, numero_serie
+    //#hierarchy_level_id//
+    //#localisation_id//
+    //#type_ordinateur_id//
+    //#modele_id//
+    //#fabricant_id//
+    //#etat_id//
+    //#utilisateur_id//
+    //#site_id//
+    date_achat
+    est_supprime
+  }
 
-class ordinateurs_cl <<CLUSTER>> {
-  PK(id) : NUMBER
-  ..memes colonnes que ordinateurs..
-  FK(localisation_id) : NUMBER << cle de cluster >>
-}
+  class peripheriques <<mat>> #D5F5E3 {
+    **+ id**
+    nom, numero_serie
+    type_peripherique
+    //#hierarchy_level_id//
+    //#localisation_id//
+    //#fabricant_id//, //#etat_id//
+    //#utilisateur_id//, //#site_id//
+  }
 
-class peripheriques_cl <<CLUSTER>> {
-  PK(id) : NUMBER
-  ..memes colonnes que peripheriques..
-  FK(localisation_id) : NUMBER << cle de cluster >>
-}
-
-' =============================================================================
-' RESEAU (TS_NETWORK_CERGY / TS_NETWORK_PAU)
-' =============================================================================
-
-class types_equip_reseau <<TS_NETWORK>> {
-  PK(id) : NUMBER
-  + nom : VARCHAR2(255)
-}
-
-class equipements_reseau <<TS_NETWORK>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  numero_serie : VARCHAR2(255)
-  FK(hierarchy_level_id) : NUMBER
-  FK(localisation_id) : NUMBER
-  FK(type_equip_id) : NUMBER
-  FK(fabricant_id) : NUMBER
-  FK(etat_id) : NUMBER
-  FK(site_id) : NUMBER
-  nb_ports : NUMBER
-  commentaire : VARCHAR2(255)
-  est_supprime : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
-}
-
-class ports_reseau <<TS_NETWORK>> {
-  PK(id) : NUMBER
-  nom : VARCHAR2(255)
-  FK(equipement_id) : NUMBER
-  adresse_mac : VARCHAR2(50)
-  type_port : VARCHAR2(20)
-  vitesse : NUMBER
-  est_actif : NUMBER(1)
-  date_creation : DATE
-  date_modification : DATE
+  class telephones <<mat>> #D5F5E3 {
+    **+ id**
+    nom, numero_tel
+    type_telephone
+    service
+    //#hierarchy_level_id//
+    //#localisation_id//
+    //#fabricant_id//, //#etat_id//
+    //#utilisateur_id//, //#site_id//
+  }
 }
 
 ' =============================================================================
-' AUDIT (TS_USERS)
+' BLOC LOGICIELS
 ' =============================================================================
+together {
+  class logiciels <<logi>> #FCF3CF {
+    **+ id**
+    nom, editeur
+    //#fabricant_id//
+  }
 
-class historique <<TS_USERS>> {
-  PK(id) : NUMBER
-  type_objet : VARCHAR2(100)
-  objet_id : NUMBER
-  FK(utilisateur_id) : NUMBER
-  champ_modifie : VARCHAR2(255)
-  ancienne_valeur : VARCHAR2(4000)
-  nouvelle_valeur : VARCHAR2(4000)
-  type_action : VARCHAR2(20)
-  date_action : DATE
+  class versions_logiciel <<logi>> #FCF3CF {
+    **+ id**
+    nom
+    //#logiciel_id//
+    //#etat_id//
+  }
+
+  class installations_logiciels <<logi>> #FCF3CF {
+    **+ id**
+    //#ordinateur_id//
+    //#version_logiciel_id//
+    date_installation
+    --
+    UNIQUE(ordi, version)
+  }
 }
 
 ' =============================================================================
-' RELATIONS
+' BLOC RESEAU
+' =============================================================================
+together {
+  class types_equip_reseau <<net>> #FADBD8 {
+    **+ id**
+    nom (UNIQUE)
+  }
+
+  class equipements_reseau <<net>> #FADBD8 {
+    **+ id**
+    nom, numero_serie
+    nb_ports
+    //#hierarchy_level_id//
+    //#localisation_id//
+    //#type_equip_id//
+    //#fabricant_id//, //#etat_id//
+    //#site_id//
+  }
+
+  class ports_reseau <<net>> #FADBD8 {
+    **+ id**
+    nom, adresse_mac
+    type_port, vitesse
+    est_actif
+    //#equipement_id//
+  }
+}
+
+' =============================================================================
+' BLOC CLUSTER (optimisation)
+' =============================================================================
+together {
+  class ordinateurs_cl <<cluster>> #F5CBA7 {
+    **+ id**
+    //memes colonnes que ordinateurs//
+    --
+    **CLUSTER cl_materiel_localisation**
+    cle = localisation_id
+  }
+
+  class peripheriques_cl <<cluster>> #F5CBA7 {
+    **+ id**
+    //memes colonnes que peripheriques//
+    --
+    **CLUSTER cl_materiel_localisation**
+    cle = localisation_id
+  }
+}
+
+' =============================================================================
+' BLOC AUDIT
+' =============================================================================
+class historique <<audit>> #E8DAEF {
+  **+ id**
+  type_objet
+  objet_id
+  champ_modifie
+  ancienne_valeur
+  nouvelle_valeur
+  type_action
+  //#utilisateur_id//
+  date_action
+}
+
+' =============================================================================
+' RELATIONS (groupees par theme pour lisibilite)
 ' =============================================================================
 
-' Hierarchies auto-referentes
-hierarchy_level "0..1" --> "*" hierarchy_level : parent
-localisations "0..1" --> "*" localisations : parent
-groupes "0..1" --> "*" groupes : parent
+' --- Hierarchies auto-referentes ---
+hierarchy_level "*" --> "0..1" hierarchy_level : parent
+localisations  "*" --> "0..1" localisations  : parent
+groupes        "*" --> "0..1" groupes        : parent
 
-' Sites
+' --- Sites ---
 sites "1" <-- "*" hierarchy_level
 sites "1" <-- "*" utilisateurs
 sites "1" <-- "*" ordinateurs
@@ -309,97 +261,60 @@ sites "1" <-- "*" peripheriques
 sites "1" <-- "*" telephones
 sites "1" <-- "*" equipements_reseau
 
-' Localisations
+' --- Organisation interne ---
 hierarchy_level "1" <-- "*" localisations
-
-' Referentiels
-fabricants "1" <-- "*" modeles_ordinateur
-fabricants "1" <-- "*" ordinateurs
-fabricants "1" <-- "*" peripheriques
-fabricants "1" <-- "*" telephones
-fabricants "1" <-- "*" equipements_reseau
-fabricants "1" <-- "*" logiciels
-
-etats "1" <-- "*" ordinateurs
-etats "1" <-- "*" peripheriques
-etats "1" <-- "*" telephones
-etats "1" <-- "*" equipements_reseau
-etats "1" <-- "*" versions_logiciel
-
-types_ordinateur "1" <-- "*" ordinateurs
-modeles_ordinateur "1" <-- "*" ordinateurs
-
-' Utilisateurs
-profils "1" <-- "*" utilisateurs
 hierarchy_level "1" <-- "*" utilisateurs
-localisations "0..1" <-- "*" utilisateurs
+hierarchy_level "1" <-- "*" groupes
 
-' Materiel <-> utilisateurs
-utilisateurs "0..1" <-- "*" ordinateurs : utilisateur_id
-utilisateurs "0..1" <-- "*" ordinateurs : technicien_id
-utilisateurs "0..1" <-- "*" peripheriques
-utilisateurs "0..1" <-- "*" telephones
+' --- Profils ---
+profils "1" <-- "*" utilisateurs
 
-' Materiel <-> hierarchie / localisation
+' --- Materiel : referentiels ---
+fabricants         "1" <-- "*" modeles_ordinateur
+modeles_ordinateur "1" <-- "*" ordinateurs
+types_ordinateur   "1" <-- "*" ordinateurs
+
+' --- Materiel : sites / locs / utilisateurs ---
 hierarchy_level "1" <-- "*" ordinateurs
 hierarchy_level "1" <-- "*" peripheriques
 hierarchy_level "1" <-- "*" telephones
 hierarchy_level "1" <-- "*" equipements_reseau
-hierarchy_level "0..1" <-- "*" logiciels
-
 localisations "0..1" <-- "*" ordinateurs
 localisations "0..1" <-- "*" peripheriques
 localisations "0..1" <-- "*" telephones
 localisations "0..1" <-- "*" equipements_reseau
+utilisateurs "0..1" <-- "*" ordinateurs
+utilisateurs "0..1" <-- "*" peripheriques
+utilisateurs "0..1" <-- "*" telephones
 
-' Groupes
-groupes "0..1" <-- "*" ordinateurs
-hierarchy_level "1" <-- "*" groupes
-
-' Logiciels
-logiciels "1" <-- "*" versions_logiciel
+' --- Logiciels ---
+logiciels         "1" <-- "*" versions_logiciel
 versions_logiciel "1" <-- "*" installations_logiciels
-ordinateurs "1" <-- "*" installations_logiciels
+ordinateurs       "1" <-- "*" installations_logiciels
 
-' Reseau
+' --- Reseau ---
 types_equip_reseau "0..1" <-- "*" equipements_reseau
-equipements_reseau "1" <-- "*" ports_reseau
+equipements_reseau "1"   <-- "*" ports_reseau
 
-' Audit
-utilisateurs "0..1" <-- "*" historique : qui
+' --- Audit ---
+utilisateurs "0..1" <-- "*" historique
 
-' Notes pedagogiques
-note bottom of hierarchy_level
-  Remplace l'ancienne table "entites".
-  Auto-reference pour modeliser
-  l'arborescence organisationnelle :
-  CY Tech > Cergy/Pau > Departements
-end note
+' --- Cluster ---
+ordinateurs   ..> ordinateurs_cl   : <i>sync (perf)</i>
+peripheriques ..> peripheriques_cl : <i>sync (perf)</i>
 
-note right of profils
-  5 profils : Admin, Technicien,
-  Enseignant, Etudiant, Administration.
-  Table profils_utilisateurs (M:N)
-  supprimee : un utilisateur n'a qu'un
-  seul profil dans le contexte CY Tech.
-end note
-
-note right of historique
-  Audit polymorphique :
-  (type_objet, objet_id) pointe vers
-  n'importe quelle table sensible.
-  Alimenté par les triggers via la
-  procedure log_change factorisee.
-end note
-
-note bottom of ordinateurs_cl
-  Tables clustered : memes colonnes que
-  ordinateurs / peripheriques mais
-  stockees ensemble physiquement par
-  localisation_id (cluster
-  cl_materiel_localisation).
-  Utilisees pour les tests de perf
-  (cluster vs heap).
-end note
+' =============================================================================
+' LEGENDE
+' =============================================================================
+legend right
+|<#E8F4FD>     | Referentiels |
+|<#FDEBD0>     | Organisation (sites, hierarchie, locs) |
+|<#FAD7A0>     | Utilisateurs et groupes |
+|<#D5F5E3>     | Materiel (ordi / periph / tel) |
+|<#FCF3CF>     | Logiciels |
+|<#FADBD8>     | Reseau |
+|<#F5CBA7>     | Tables clustered (optimisation) |
+|<#E8DAEF>     | Audit (polymorphique) |
+endlegend
 
 @enduml
