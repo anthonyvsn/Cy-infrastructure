@@ -120,10 +120,12 @@ PROMPT
 PROMPT ========== TEST 1 : ordinateurs WHERE site_id = 1 ==========
 
 -- 1.a) AVEC l'index (etat normal)
+-- STATEMENT_ID fixe le plan dans PLAN_TABLE pour eviter qu'un appel ulterieur
+-- ne l'ecrase avant le DISPLAY (bug courant sans STATEMENT_ID).
 PROMPT ----- Plan AVEC index idx_ordi_site -----
-EXPLAIN PLAN FOR
+EXPLAIN PLAN SET STATEMENT_ID = 'T1_AVEC' FOR
   SELECT id, nom FROM ordinateurs WHERE site_id = 1 AND est_supprime = 0;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'T1_AVEC', 'BASIC +PREDICATE +COST'));
 
 BEGIN bench_query('AVEC index site_id', 'SELECT id, nom FROM ordinateurs WHERE site_id = 1 AND est_supprime = 0'); END;
 /
@@ -133,9 +135,9 @@ PROMPT ----- Drop index idx_ordi_site -----
 DROP INDEX idx_ordi_site;
 
 PROMPT ----- Plan SANS index -----
-EXPLAIN PLAN FOR
+EXPLAIN PLAN SET STATEMENT_ID = 'T1_SANS' FOR
   SELECT id, nom FROM ordinateurs WHERE site_id = 1 AND est_supprime = 0;
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'T1_SANS', 'BASIC +PREDICATE +COST'));
 
 BEGIN bench_query('SANS index site_id', 'SELECT id, nom FROM ordinateurs WHERE site_id = 1 AND est_supprime = 0'); END;
 /
@@ -160,9 +162,9 @@ PROMPT ========== TEST 2 : utilisateurs WHERE UPPER(login) = 'ALICEMARTIN' =====
 
 -- 2.a) AVEC index fonctionnel
 PROMPT ----- Plan AVEC idx_user_login_upper -----
-EXPLAIN PLAN FOR
+EXPLAIN PLAN SET STATEMENT_ID = 'T2_AVEC' FOR
   SELECT id, login, nom FROM utilisateurs WHERE UPPER(login) = 'ALICEMARTIN10';
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'T2_AVEC', 'BASIC +PREDICATE +COST'));
 
 BEGIN bench_query('AVEC index fonctionnel UPPER(login)',
   'SELECT id, login, nom FROM utilisateurs WHERE UPPER(login) = ''ALICEMARTIN10'''); END;
@@ -172,9 +174,9 @@ BEGIN bench_query('AVEC index fonctionnel UPPER(login)',
 DROP INDEX idx_user_login_upper;
 
 PROMPT ----- Plan SANS index fonctionnel -----
-EXPLAIN PLAN FOR
+EXPLAIN PLAN SET STATEMENT_ID = 'T2_SANS' FOR
   SELECT id, login, nom FROM utilisateurs WHERE UPPER(login) = 'ALICEMARTIN10';
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'T2_SANS', 'BASIC +PREDICATE +COST'));
 
 BEGIN bench_query('SANS index fonctionnel UPPER(login)',
   'SELECT id, login, nom FROM utilisateurs WHERE UPPER(login) = ''ALICEMARTIN10'''); END;
@@ -380,20 +382,157 @@ CREATE INDEX idx_ordi_nom_upper       ON ordinateurs(UPPER(nom))         TABLESP
 
 
 -- =============================================================================
+-- TEST 8 : CURSEUR EXPLICITE -- rapport d'activite par site
+-- =============================================================================
+-- Demontre l'utilisation d'un curseur explicite PL/SQL pour parcourir
+-- un jeu de resultats et produire un rapport d'activite.
+-- Compare : curseur explicite (FOR LOOP sur CURSOR) vs requete agregee directe.
+
+PROMPT
+PROMPT ========== TEST 8 : curseur explicite vs agregation directe ==========
+
+DECLARE
+  CURSOR c_sites IS
+    SELECT s.id, s.nom AS site_nom,
+           COUNT(o.id)          AS nb_ordis,
+           COUNT(CASE WHEN o.est_supprime = 0 THEN 1 END) AS nb_actifs,
+           ROUND(AVG(SYSDATE - o.date_achat)) AS age_moyen_jours
+      FROM sites s
+      LEFT JOIN ordinateurs o ON o.site_id = s.id
+     GROUP BY s.id, s.nom;
+  v_t0  NUMBER;
+  v_t1  NUMBER;
+BEGIN
+  v_t0 := DBMS_UTILITY.GET_TIME;
+  DBMS_OUTPUT.PUT_LINE('  --- Rapport via curseur explicite ---');
+  FOR rec IN c_sites LOOP
+    DBMS_OUTPUT.PUT_LINE('  Site : ' || rec.site_nom
+      || ' | Ordis : ' || rec.nb_ordis
+      || ' | Actifs : ' || rec.nb_actifs
+      || ' | Age moyen : ' || NVL(TO_CHAR(rec.age_moyen_jours),'N/A') || ' j');
+  END LOOP;
+  v_t1 := DBMS_UTILITY.GET_TIME;
+  DBMS_OUTPUT.PUT_LINE('  [Curseur explicite] ' || (v_t1 - v_t0) || ' cs');
+END;
+/
+
+BEGIN bench_query('Agregation directe (sans curseur)',
+  'SELECT s.nom, COUNT(o.id), COUNT(CASE WHEN o.est_supprime=0 THEN 1 END) FROM sites s LEFT JOIN ordinateurs o ON o.site_id=s.id GROUP BY s.id, s.nom');
+END;
+/
+
+
+-- =============================================================================
+-- TEST 9 : PROCEDURE PL/SQL vs INSERT direct
+-- =============================================================================
+-- Compare le cout d'un INSERT via la procedure p_ajouter_ordinateur
+-- (qui applique les validations, triggers, sequence) vs un INSERT brut.
+-- Montre que le surcout de la procedure est faible au regard des garanties.
+
+PROMPT
+PROMPT ========== TEST 9 : procedure p_ajouter_ordinateur vs INSERT direct ==========
+
+DECLARE
+  v_t0  NUMBER;
+  v_t1  NUMBER;
+  v_id  NUMBER;  -- parametre OUT obligatoire de p_ajouter_ordinateur
+BEGIN
+  -- 9.a) Via la procedure metier
+  v_t0 := DBMS_UTILITY.GET_TIME;
+  FOR i IN 1..10 LOOP
+    p_ajouter_ordinateur(
+      p_nom                => 'TEST_PROC_' || i,
+      p_numero_serie       => 'SN-PROC-' || i || '-' || DBMS_RANDOM.STRING('U',4),
+      p_hierarchy_level_id => 2,
+      p_site_id            => 1,
+      p_fabricant_id       => 1,
+      p_modele_id          => 1,
+      p_etat_id            => 1,
+      p_id_out             => v_id
+    );
+  END LOOP;
+  v_t1 := DBMS_UTILITY.GET_TIME;
+  DBMS_OUTPUT.PUT_LINE('  [p_ajouter_ordinateur x10] ' || (v_t1 - v_t0) || ' cs');
+
+  -- 9.b) INSERT direct (meme volume, sans procedure)
+  v_t0 := DBMS_UTILITY.GET_TIME;
+  FOR i IN 1..10 LOOP
+    INSERT INTO ordinateurs (nom, numero_serie, site_id, hierarchy_level_id,
+                             fabricant_id, modele_id, etat_id, date_achat)
+    VALUES ('TEST_RAW_' || i,
+            'SN-RAW-' || i || '-' || DBMS_RANDOM.STRING('U',4),
+            1, 2, 1, 1, 1, SYSDATE);
+  END LOOP;
+  COMMIT;
+  v_t1 := DBMS_UTILITY.GET_TIME;
+  DBMS_OUTPUT.PUT_LINE('  [INSERT direct x10]        ' || (v_t1 - v_t0) || ' cs');
+
+  -- Nettoyage des donnees de test
+  DELETE FROM ordinateurs WHERE nom LIKE 'TEST_%';
+  COMMIT;
+  DBMS_OUTPUT.PUT_LINE('  (donnees de test supprimees)');
+END;
+/
+
+
+-- =============================================================================
+-- TEST 10 : JOINTURE DISTRIBUEE CERGY + PAU (BDDR)
+-- =============================================================================
+-- Compare une jointure locale (ordinateurs Cergy seulement) vs une jointure
+-- cross-site qui interroge les deux instances via le DB link.
+-- NE FONCTIONNE QUE SI XE_PAU est deploye et joignable.
+
+PROMPT
+PROMPT ========== TEST 10 : jointure locale vs jointure distribuee (BDDR) ==========
+
+-- Plan de la jointure distribuee
+EXPLAIN PLAN SET STATEMENT_ID = 'T10_DIST' FOR
+  SELECT 'CERGY' AS site, o.nom, o.numero_serie, l.nom AS localisation
+    FROM ordinateurs o
+    JOIN localisations l ON l.id = o.localisation_id
+   WHERE o.est_supprime = 0 AND ROWNUM <= 100
+  UNION ALL
+  SELECT 'PAU' AS site, o.nom, o.numero_serie, l.nom AS localisation
+    FROM ordinateurs@db_pau o
+    JOIN localisations@db_pau l ON l.id = o.localisation_id
+   WHERE o.est_supprime = 0 AND ROWNUM <= 100;
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'T10_DIST', 'BASIC +PREDICATE +COST'));
+
+BEGIN
+  -- Jointure locale uniquement
+  bench_query('Jointure locale (Cergy seul)',
+    'SELECT o.nom, l.nom FROM ordinateurs o JOIN localisations l ON l.id=o.localisation_id WHERE o.est_supprime=0 AND ROWNUM<=100');
+
+  -- Jointure distribuee (Cergy + Pau via db link)
+  BEGIN
+    bench_query('Jointure distribuee (Cergy + Pau)',
+      'SELECT * FROM (SELECT o.nom AS ordi, l.nom AS local FROM ordinateurs o JOIN localisations l ON l.id=o.localisation_id WHERE o.est_supprime=0 AND ROWNUM<=100 UNION ALL SELECT o.nom AS ordi, l.nom AS local FROM ordinateurs@db_pau o JOIN localisations@db_pau l ON l.id=o.localisation_id WHERE o.est_supprime=0 AND ROWNUM<=100)');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('  (db link db_pau non joignable : ' || SQLERRM || ')');
+  END;
+END;
+/
+
+
+-- =============================================================================
 -- SYNTHESE
 -- =============================================================================
 -- A la fin de la session, copier les temps moyens du DBMS_OUTPUT dans un
 -- tableau / graphique pour le rapport :
 --
---   Test                                    | Avec      | Sans      | Gain
+--   Test                                    | Avec/Proc | Sans/Raw  | Gain
 --   ----------------------------------------+-----------+-----------+--------
---   Site_id (index b-tree)                  | ~xx ms    | ~yy ms    | x N
---   UPPER(login) (index fonctionnel)        | ~xx ms    | ~yy ms    | x N
---   est_supprime (bitmap)                   | ~xx ms    | ~yy ms    | x N
---   localisation (cluster vs heap)          | ~xx ms    | ~yy ms    | x N
---   stats parc (MV)                         | ~xx ms    | ~yy ms    | x N
---   SELECT local vs distant                 | local xx  | dist  yy  | x N
---   vue_parc_cergy (impact global indexes)  | ~xx ms    | ~yy ms    | x N
+--   1. site_id (index b-tree)               | ~xx cs    | ~yy cs    | x N
+--   2. UPPER(login) (index fonctionnel)     | ~xx cs    | ~yy cs    | x N
+--   3. est_supprime (bitmap)                | ~xx cs    | ~yy cs    | x N
+--   4. localisation (cluster vs heap)       | ~xx cs    | ~yy cs    | x N
+--   5. stats parc (MV vs live)             | ~xx cs    | ~yy cs    | x N
+--   6. SELECT local vs distant (db link)   | local xx  | dist  yy  | x N
+--   7. vue_parc_cergy (impact indexes)     | ~xx cs    | ~yy cs    | x N
+--   8. Curseur explicite vs agregation     | ~xx cs    | ~yy cs    | -
+--   9. Procedure vs INSERT direct          | ~xx cs    | ~yy cs    | -
+--  10. Jointure locale vs distribuee (BDDR)| ~xx cs    | ~yy cs    | x N
 --
 -- =============================================================================
 

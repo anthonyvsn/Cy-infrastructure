@@ -204,6 +204,10 @@ GRANT DROP PUBLIC SYNONYM   TO ADMIN_CYTECH;
 -- doit etre cree dans le schema ADMIN_CYTECH.
 -- &current_pdb a deja ete resolu en haut du script.
 -- ============================================================================
+
+-- Droit d'ecriture sur PLAN_TABLE (necessaire pour EXPLAIN PLAN dans tests_perf)
+GRANT SELECT, INSERT, UPDATE, DELETE ON SYS.PLAN_TABLE$ TO ADMIN_CYTECH;
+
 CONNECT ADMIN_CYTECH/cytech2026@//localhost:1521/&current_pdb
 
 
