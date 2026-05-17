@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(@\\('C:\\\\app','C:\\\\Oracle','C:\\\\Program Files\\\\Oracle'\\) | ForEach-Object { if \\(Test-Path $_\\) { Get-ChildItem $_ -Filter 'sqlplus.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName } })",
+      "PowerShell(Get-Content \"$env:TEMP\\\\deploy_cergy.log\" | Select-Object -Skip 24 -First 50)",
+      "PowerShell(Get-Content \"$env:TEMP\\\\deploy_cergy.log\" | Select-Object -Skip 14 -First 14)",
+      "PowerShell(Get-Content \"$env:TEMP\\\\deploy_cergy.log\" | Select-Object -First 25)",
+      "PowerShell(Get-Content \"$env:TEMP\\\\deploy_cergy.log\" | Select-Object -Index \\(20..35\\))",
+      "PowerShell(Get-Content \"c:\\\\Users\\\\VM-Analysis\\\\Desktop\\\\tad\\\\Cy-infrastructure\\\\bdd_Cy_infrastructure.sql\" | Select-Object -Index \\(99..107\\))",
+      "Bash(until [ -s \"/c/Users/VM-ANA~1/AppData/Local/Temp/claude/c--Users-VM-Analysis-Desktop-tad-Cy-infrastructure/8a4816b5-8bda-4b0b-a110-d12772b27794/tasks/b86xbl8a0.output\" ]; do sleep 5; done; tail -120 \"/c/Users/VM-ANA~1/AppData/Local/Temp/claude/c--Users-VM-Analysis-Desktop-tad-Cy-infrastructure/8a4816b5-8bda-4b0b-a110-d12772b27794/tasks/b86xbl8a0.output\")",
+      "Read(//c/Users/VM-ANA~1/AppData/Local/Temp/claude/c--Users-VM-Analysis-Desktop-tad-Cy-infrastructure/8a4816b5-8bda-4b0b-a110-d12772b27794/tasks/**)",
+      "PowerShell(Get-Content \"$env:TEMP\\\\plsql_out.log\")"
+    ]
+  }
+}
