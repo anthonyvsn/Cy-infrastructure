@@ -1,0 +1,9 @@
+# PlantUML outputs (generated from .puml)
+diagrammes/*.png
+diagrammes/*.svg
+diagrammes/*.pdf
+
+# Local config / IDE
+.claude/
+.vscode/
+.idea/
