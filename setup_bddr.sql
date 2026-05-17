@@ -1,14 +1,12 @@
--- =============================================================================
--- SETUP BDDR : lien symetrique PAU -> CERGY + verification
--- A executer en ADMIN_CYTECH sur XE_PAU, apres avoir deploye le schema sur PAU.
---
--- USAGE :
---   sqlplus ADMIN_CYTECH/cytech2026@//localhost:1521/XE_PAU @setup_bddr.sql
---
--- Prerequis :
---   - XE_CERGY deploye et accessible (launch_all.sql execute)
---   - XE_PAU deploye (launch_all.sql execute sur XE_PAU)
--- =============================================================================
+/*
+	Setup de la BDDR avec un lien symetrqie entre Pau et Cergy.
+	Commandes :
+		sqlplus ADMIN_CYTECH/cytech2026@//localhost:1521/XE_PAU @setup_bddr.sql
+	
+	Prérequis :
+		- XE_CERGY deploye et accessible (launch_all.sql execute)
+		- XE_PAU deploye (launch_all.sql execute sur XE_PAU)
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED
 SET FEEDBACK ON

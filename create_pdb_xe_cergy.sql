@@ -1,16 +1,10 @@
--- =============================================================================
--- CREATION DU PDB XE_CERGY
--- A executer en tant que SYS depuis le CDB (pas depuis un PDB)
---
--- USAGE :
---   sqlplus sys/<mdp>@//localhost:1521/XE as sysdba @create_pdb_xe_cergy.sql
---
--- Ce script :
---   1. Detecte automatiquement les chemins Oracle (pdbseed)
---   2. Cree le PDB XE_CERGY
---   3. L'ouvre et sauvegarde l'etat (auto-ouverture au demarrage)
---   4. Affiche la ligne a ajouter dans tnsnames.ora
--- =============================================================================
+/*
+	Creation du PDB XE_CERGY (a exécuter sous SYSTEM).
+	a noter : affiche aussi la ligne a ajouter dans tnsnames.ora
+
+	Commandes :
+		sqlplus sys/<mdp>@//localhost:1521/XE as sysdba @create_pdb_xe_cergy.sql
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED
 SET FEEDBACK ON
@@ -62,7 +56,7 @@ BEGIN
     v_sep := '/';
   END IF;
 
-  -- Extrait le repertoire : tout jusqu'au dernier separateur (inclus)
+  -- Extrait le repertoire : tout jusqu'au dernier separateur inclus
   -- INSTR avec position negative cherche depuis la fin de la chaine
   v_seed_dir := SUBSTR(v_seed_dir, 1, INSTR(v_seed_dir, v_sep, -1));
 

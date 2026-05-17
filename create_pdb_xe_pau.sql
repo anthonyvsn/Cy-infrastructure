@@ -1,10 +1,9 @@
--- =============================================================================
--- CREATION DU PDB XE_PAU
--- A executer en tant que SYS depuis le CDB (pas depuis un PDB)
---
--- USAGE :
---   sqlplus sys/<mdp>@//localhost:1521/XE as sysdba @create_pdb_xe_pau.sql
--- =============================================================================
+/*
+	Creation du PDB XE_PAU (a exécuter sous SYSTEM).
+
+	Commandes :
+		sqlplus sys/<mdp>@//localhost:1521/XE as sysdba @create_pdb_xe_pau.sql
+*/
 
 SET SERVEROUTPUT ON SIZE UNLIMITED
 SET FEEDBACK ON
