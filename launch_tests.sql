@@ -6,7 +6,7 @@
 --
 -- USAGE :
 --   cd c:\Users\VM-Analysis\Desktop\tad\Cy-infrastructure
---   sqlplus ADMIN_CYTECH/cytech2026@XE_CERGY @launch_tests.sql
+--   sqlplus ADMIN_CYTECH/cytech2026@//localhost:1521/XE_CERGY @launch_tests.sql
 --
 -- Pour relancer apres un premier passage :
 --   1) En SYS dans le CDB : drop+recreate le PDB (plus simple et propre)

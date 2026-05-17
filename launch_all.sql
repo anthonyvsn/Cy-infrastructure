@@ -5,7 +5,7 @@
 --
 -- USAGE :
 --   cd c:\Users\VM-Analysis\Desktop\tad\Cy-infrastructure
---   sqlplus sys/<mdp>@XE_CERGY as sysdba @launch_all.sql
+--   sqlplus sys/<mdp>@//localhost:1521/XE_CERGY as sysdba @launch_all.sql
 --
 -- Le script bdd_Cy_infrastructure.sql bascule mid-execution en ADMIN_CYTECH
 -- via CONNECT. Tout ce qui suit s'execute donc en ADMIN_CYTECH/cytech2026.

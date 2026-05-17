@@ -346,8 +346,8 @@ END;
 /
 
 -- Drop des index principaux (b-tree sur ordinateurs)
-PROMPT ----- Drop indexes ordinateurs -----
 BEGIN
+  DBMS_OUTPUT.PUT_LINE('----- Drop indexes ordinateurs -----');
   FOR ind IN (SELECT index_name FROM user_indexes
                WHERE table_name = 'ORDINATEURS'
                  AND index_type IN ('NORMAL', 'FUNCTION-BASED NORMAL')

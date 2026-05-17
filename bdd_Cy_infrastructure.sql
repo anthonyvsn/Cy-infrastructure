@@ -52,13 +52,60 @@ SET FEEDBACK ON
 ALTER SESSION SET db_create_file_dest = '&datafile_dir';
 
 -- =============================================================================
+-- 0b. NETTOYAGE IDEMPOTENT (DROP silencieux avant re-creation)
+--     Permet de relancer le script sans dropper le PDB.
+--     _ORACLE_SCRIPT=true est deja actif (ligne precedente du fichier).
+-- =============================================================================
+BEGIN
+  -- Sessions actives
+  FOR s IN (SELECT sid, serial# FROM v$session
+             WHERE username IN ('ADMIN_CYTECH','TECH_CERGY','TECH_PAU','USER_RO')) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || s.sid || ',' || s.serial# || ''' IMMEDIATE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+  -- Utilisateurs (CASCADE supprime toutes leurs sequences/tables/vues/etc.)
+  FOR u IN (SELECT username FROM dba_users
+             WHERE username IN ('ADMIN_CYTECH','TECH_CERGY','TECH_PAU','USER_RO')) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP USER ' || u.username || ' CASCADE';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+  -- Roles
+  FOR r IN (SELECT role FROM dba_roles
+             WHERE role IN ('R_ADMIN','R_TECH_CERGY','R_TECH_PAU','R_CONSULTATION')) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP ROLE ' || r.role;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+  -- Tablespaces
+  FOR ts IN (SELECT tablespace_name FROM dba_tablespaces
+              WHERE tablespace_name IN
+                ('TS_MATERIEL_CERGY','TS_MATERIEL_PAU','TS_USERS',
+                 'TS_NETWORK_CERGY','TS_NETWORK_PAU','TS_INDEX')) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP TABLESPACE ' || ts.tablespace_name ||
+                        ' INCLUDING CONTENTS AND DATAFILES';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+  FOR ts IN (SELECT tablespace_name FROM dba_temp_files
+              WHERE tablespace_name = 'TS_TEMP') LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP TABLESPACE TS_TEMP INCLUDING CONTENTS AND TEMPFILES';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+  DBMS_OUTPUT.PUT_LINE('Nettoyage idempotent termine.');
+END;
+/
+
+-- =============================================================================
 -- 1. TABLESPACES (auto-place dans &datafile_dir grace a OMF)
 -- =============================================================================
--- Pour relancer le script proprement, drop+recree le PDB :
---   ALTER PLUGGABLE DATABASE <pdb> CLOSE IMMEDIATE;
---   DROP PLUGGABLE DATABASE <pdb> INCLUDING DATAFILES;
---   CREATE PLUGGABLE DATABASE <pdb> ADMIN USER pdbadmin IDENTIFIED BY pdbpass;
---   ALTER PLUGGABLE DATABASE <pdb> OPEN;
 
 CREATE TABLESPACE TS_MATERIEL_CERGY
   DATAFILE SIZE 100M AUTOEXTEND ON NEXT 50M MAXSIZE 500M;
@@ -157,7 +204,7 @@ GRANT DROP PUBLIC SYNONYM   TO ADMIN_CYTECH;
 -- doit etre cree dans le schema ADMIN_CYTECH.
 -- &current_pdb a deja ete resolu en haut du script.
 -- ============================================================================
-CONNECT ADMIN_CYTECH/cytech2026@&current_pdb
+CONNECT ADMIN_CYTECH/cytech2026@//localhost:1521/&current_pdb
 
 
 -- =============================================================================
@@ -678,12 +725,12 @@ GROUP BY s.nom, e.nom;
 -- Database Link Cergy -> Pau
 CREATE DATABASE LINK db_pau
   CONNECT TO TECH_PAU IDENTIFIED BY pau2026
-  USING 'XE_PAU';
+  USING '//localhost:1521/XE_PAU';
 
 -- Side note : sur l'instance XE_PAU, creer un lien symetrique vers Cergy :
 --   CREATE DATABASE LINK db_cergy
 --     CONNECT TO TECH_CERGY IDENTIFIED BY cergy2026
---     USING 'XE_CERGY';
+--     USING '//localhost:1521/XE_CERGY';
 
 -- Synonymes publics pour transparence d'acces
 CREATE OR REPLACE PUBLIC SYNONYM ordinateurs_pau        FOR ordinateurs@db_pau;
