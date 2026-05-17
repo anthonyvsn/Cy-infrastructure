@@ -1,51 +1,25 @@
 /*
-  Schema principal -- Projet GLPI CY Tech multi-sites (Cergy + Pau).
-
-  Decisions de modelisation :
-    - Table `hierarchy_level` (anciennement `entites` / `hierarchy_levels`) :
-      structure hierarchique organisationnelle (CY Tech > Cergy/Pau > departements).
-    - Table `profils` CONSERVEE comme simple lookup (Admin, Technicien, Enseignant,
-      Etudiant, Administration). Permet de classer les utilisateurs par role
-      applicatif sans dupliquer les libelles. Reference via utilisateurs.profil_id.
-    - Table `profils_utilisateurs` (M:N profils <-> utilisateurs <-> hierarchy_level)
-      SUPPRIMEE : dans le contexte CY Tech un utilisateur n'a qu'un profil, la
-      relation 1:1 deguisee en M:N n'apportait rien.
-    - Table `groupes` conservee : referencee par ordinateurs.groupe_id pour
-      regrouper du materiel (ex : "PCs salle TP Cauchy").
-
-  Note Oracle : `CREATE OR REPLACE` n'est valide QUE pour
-  VIEW / PROCEDURE / FUNCTION / TRIGGER / PACKAGE / SYNONYM / TYPE.
-  Pour TABLE / TABLESPACE / ROLE / USER / CLUSTER / SEQUENCE : DROP puis CREATE.
-  Le bloc "DROP idempotent" en tete du fichier permet de relancer le script
-  proprement.
-
-  Cluster `cl_materiel_localisation` : abandonne (bonus pedagogique non concluant).
-
-  Ordre d'execution : voir README.md
+  Ce fichier contient le schéma principal du projet "CY-infrastructure" (inspiré de GLPI).
+  Il y a 2 sites : Cergy et Pau.
 */
 
 ALTER SESSION SET "_ORACLE_SCRIPT"=true;
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 SET DEFINE ON
 
--- =============================================================================
--- 0. RESOLUTION DU PDB COURANT + REPERTOIRE DES DATAFILES
--- =============================================================================
--- On lit le PDB courant pour :
---   1) Faire pointer db_create_file_dest sur le dossier du PDB (OMF active)
---      => evite la collision de noms .dbf entre XE_CERGY et XE_PAU.
---   2) Reconstruire la connexion ADMIN_CYTECH plus bas via &current_pdb.
--- Hypothese : les PDBs sont a C:\app\<user>\product\21c\oradata\XE\<pdb_name>\
--- (chemin par defaut Oracle XE 21c). Ajuste si ton install differe.
+
+/*
+  Lecture du PDB courant (pluggable database) et des datafile.
+  Cela évite de noms .dbf entre XE_CERGY et XE_PAU.
+*/
 
 SET HEADING OFF
 SET FEEDBACK OFF
 COLUMN pdb_name NEW_VALUE current_pdb NOPRINT
 SELECT sys_context('USERENV','CON_NAME') AS pdb_name FROM dual;
 COLUMN datafile_dir NEW_VALUE datafile_dir NOPRINT
--- Regex accepte '\' (Windows) ET '/' (Unix/Linux/Docker).
--- Sans le '/', le regex ne match rien sur les paths Unix donc &datafile_dir
--- reste vide => ORA-02236 sur tous les CREATE TABLESPACE.
+-- On utilise les regex. Différences Windows-Linux :
+-- Windows : '\'      Linux : '/' (Unix/Linux/Docker).
 SELECT REGEXP_REPLACE(name, '[^/\\]+$', '') AS datafile_dir
   FROM v$datafile
  WHERE con_id = sys_context('USERENV','CON_ID')
@@ -55,11 +29,8 @@ SET FEEDBACK ON
 
 ALTER SESSION SET db_create_file_dest = '&datafile_dir';
 
--- =============================================================================
--- 0b. NETTOYAGE IDEMPOTENT (DROP silencieux avant re-creation)
---     Permet de relancer le script sans dropper le PDB.
---     _ORACLE_SCRIPT=true est deja actif (ligne precedente du fichier).
--- =============================================================================
+
+/* Nettoyage avec drop silencieux */
 BEGIN
   -- Sessions actives
   FOR s IN (SELECT sid, serial# FROM v$session
@@ -88,11 +59,9 @@ BEGIN
   -- Tablespaces
   FOR ts IN (SELECT tablespace_name FROM dba_tablespaces
               WHERE tablespace_name IN
-                ('TS_MATERIEL_CERGY','TS_MATERIEL_PAU','TS_USERS',
-                 'TS_NETWORK_CERGY','TS_NETWORK_PAU','TS_INDEX')) LOOP
+                ('TS_MATERIEL_CERGY','TS_MATERIEL_PAU','TS_USERS', 'TS_NETWORK_CERGY','TS_NETWORK_PAU','TS_INDEX')) LOOP
     BEGIN
-      EXECUTE IMMEDIATE 'DROP TABLESPACE ' || ts.tablespace_name ||
-                        ' INCLUDING CONTENTS AND DATAFILES';
+      EXECUTE IMMEDIATE 'DROP TABLESPACE ' || ts.tablespace_name || ' INCLUDING CONTENTS AND DATAFILES';
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
   END LOOP;
@@ -107,9 +76,11 @@ BEGIN
 END;
 /
 
--- =============================================================================
--- 1. TABLESPACES (auto-place dans &datafile_dir grace a OMF)
--- =============================================================================
+
+
+/*
+  Creation des Tablespaces
+*/
 
 CREATE TABLESPACE TS_MATERIEL_CERGY
   DATAFILE SIZE 100M AUTOEXTEND ON NEXT 50M MAXSIZE 500M;
@@ -133,27 +104,27 @@ CREATE TEMPORARY TABLESPACE TS_TEMP
   TEMPFILE SIZE 50M AUTOEXTEND ON NEXT 25M MAXSIZE 200M;
 
 
--- =============================================================================
--- 2. UTILISATEURS ET ROLES ORACLE
--- =============================================================================
-
--- Roles
--- R_ADMIN        : admin general (Cergy + Pau)
--- R_TECH_CERGY   : technicien Cergy
--- R_TECH_PAU     : technicien Pau
--- R_CONSULTATION : lecture seule
+/*
+  Creation des Roles :
+      - R_ADMIN : admin general (pour Cergy + Pau)
+      - R_TECH_CERGY : technicien de Cergy
+      - R_TECH_PAU : technicien de Pau
+      - R_CONSULTATION : lecture seule
+*/
 CREATE ROLE R_ADMIN;
 CREATE ROLE R_TECH_CERGY;
 CREATE ROLE R_TECH_PAU;
 CREATE ROLE R_CONSULTATION;
 
+
+/*
+  Attribution des privilèges aux roles.
+*/
 -- Privileges R_ADMIN
 GRANT CONNECT, RESOURCE TO R_ADMIN;
 GRANT CREATE TABLE, CREATE VIEW, CREATE PROCEDURE, CREATE TRIGGER TO R_ADMIN;
 GRANT CREATE SEQUENCE, CREATE SYNONYM, CREATE DATABASE LINK TO R_ADMIN;
 GRANT CREATE CLUSTER, CREATE MATERIALIZED VIEW TO R_ADMIN;
--- UNLIMITED TABLESPACE est un privilege qui ne peut etre accorde qu'a un user,
--- pas a un role. On le grant directement a ADMIN_CYTECH plus bas.
 
 -- Privileges R_TECH_CERGY
 GRANT CONNECT, RESOURCE TO R_TECH_CERGY;
@@ -167,7 +138,10 @@ GRANT CREATE SESSION TO R_TECH_PAU;
 GRANT CONNECT TO R_CONSULTATION;
 GRANT CREATE SESSION TO R_CONSULTATION;
 
--- Utilisateurs
+
+/*
+  Creation des Utilisateurs.
+*/
 CREATE USER ADMIN_CYTECH IDENTIFIED BY cytech2026
   DEFAULT TABLESPACE TS_USERS
   TEMPORARY TABLESPACE TS_TEMP;
@@ -184,12 +158,15 @@ CREATE USER USER_RO IDENTIFIED BY RO2026
   DEFAULT TABLESPACE TS_USERS
   TEMPORARY TABLESPACE TS_TEMP;
 
--- Attribution des roles
+
+/*
+  Attribution des roles aux utilisateurs.
+*/
 GRANT R_ADMIN TO ADMIN_CYTECH;
 GRANT R_TECH_CERGY TO TECH_CERGY;
 GRANT R_TECH_PAU TO TECH_PAU;
 
--- UNLIMITED TABLESPACE doit etre accorde directement aux utilisateurs (pas aux roles)
+/* Privilèges liés aux users*/
 GRANT UNLIMITED TABLESPACE TO ADMIN_CYTECH;
 GRANT UNLIMITED TABLESPACE TO TECH_CERGY;
 GRANT UNLIMITED TABLESPACE TO TECH_PAU;
@@ -199,31 +176,24 @@ GRANT R_CONSULTATION TO USER_RO;
 GRANT UNLIMITED TABLESPACE TO ADMIN_CYTECH;
 ALTER USER TECH_CERGY QUOTA UNLIMITED ON TS_MATERIEL_CERGY;
 ALTER USER TECH_CERGY QUOTA UNLIMITED ON TS_NETWORK_CERGY;
-ALTER USER TECH_PAU    QUOTA UNLIMITED ON TS_MATERIEL_PAU;
-ALTER USER TECH_PAU    QUOTA UNLIMITED ON TS_NETWORK_PAU;
+ALTER USER TECH_PAU QUOTA UNLIMITED ON TS_MATERIEL_PAU;
+ALTER USER TECH_PAU QUOTA UNLIMITED ON TS_NETWORK_PAU;
 
--- Pour creer des synonymes publics et des MV depuis le schema admin
 GRANT CREATE PUBLIC SYNONYM TO ADMIN_CYTECH;
-GRANT DROP PUBLIC SYNONYM   TO ADMIN_CYTECH;
+GRANT DROP PUBLIC SYNONYM TO ADMIN_CYTECH;
 
--- ============================================================================
--- BASCULE DE SESSION : on quitte SYSDBA et on devient ADMIN_CYTECH.
--- Raison : on ne peut pas creer de TRIGGER sur des tables possedees par SYS
--- (ORA-04089). Tout le schema applicatif (tables, vues, sequences, etc.)
--- doit etre cree dans le schema ADMIN_CYTECH.
--- &current_pdb a deja ete resolu en haut du script.
--- ============================================================================
 
--- Droit d'ecriture sur PLAN_TABLE (necessaire pour EXPLAIN PLAN dans tests_perf)
+
+/*
+  Passage en session ADMIN_CYTECH.
+*/
 GRANT SELECT, INSERT, UPDATE, DELETE ON SYS.PLAN_TABLE$ TO ADMIN_CYTECH;
-
 CONNECT ADMIN_CYTECH/cytech2026@//localhost:1521/&current_pdb
 
 
--- =============================================================================
--- 3. SEQUENCES
--- =============================================================================
-
+/*
+  Sequences.
+*/
 CREATE SEQUENCE seq_sites START WITH 1 INCREMENT BY 1;
 CREATE SEQUENCE seq_hierarchy_level START WITH 1 INCREMENT BY 1;
 CREATE SEQUENCE seq_localisations START WITH 1 INCREMENT BY 1;
@@ -246,11 +216,11 @@ CREATE SEQUENCE seq_ports_reseau START WITH 1 INCREMENT BY 1;
 CREATE SEQUENCE seq_historique START WITH 1 INCREMENT BY 1;
 
 
--- =============================================================================
--- 4. TABLES REFERENTIELLES (partagees entre Cergy et Pau)
--- =============================================================================
+/*
+  Creation des Tables.
+*/
 
--- Sites CY Tech
+-- Sites : CY Tech ou Pau
 CREATE TABLE sites (
   id          NUMBER PRIMARY KEY,
   nom         VARCHAR2(100) NOT NULL,
@@ -262,8 +232,8 @@ CREATE TABLE sites (
   date_modification DATE DEFAULT SYSDATE
 ) TABLESPACE TS_USERS;
 
--- Hierarchy_level : structure organisationnelle
--- (CY Tech > Cergy / Pau > Departement Info / Maths / ...)
+-- Hierarchy_level : correspond au niveau hiérarchique
+-- Ex : CY Tech > Cergy / Pau > Departement Info / Maths / ...
 CREATE TABLE hierarchy_level (
   id                        NUMBER PRIMARY KEY,
   nom                       VARCHAR2(255) NOT NULL,
@@ -276,7 +246,7 @@ CREATE TABLE hierarchy_level (
   date_modification         DATE DEFAULT SYSDATE
 ) TABLESPACE TS_USERS;
 
--- Localisations physiques (Salle 201, Bureau...)
+-- localisations : correspond aux localisations physiques des salles (ex : Salle 201, Bureau, ...)
 CREATE TABLE localisations (
   id                     NUMBER PRIMARY KEY,
   nom                    VARCHAR2(255) NOT NULL,
@@ -290,26 +260,26 @@ CREATE TABLE localisations (
   date_modification      DATE DEFAULT SYSDATE
 ) TABLESPACE TS_USERS;
 
--- Fabricants
+-- Fabricants : correspond au fabricant du matériel informatique
 CREATE TABLE fabricants (
   id  NUMBER PRIMARY KEY,
   nom VARCHAR2(255) NOT NULL UNIQUE
 ) TABLESPACE TS_USERS;
 
--- Etats du materiel
+-- Etats : correspond à l'état dui matériel informatique
 CREATE TABLE etats (
   id   NUMBER PRIMARY KEY,
   nom  VARCHAR2(255) NOT NULL UNIQUE,
   etat VARCHAR2(50)
 ) TABLESPACE TS_USERS;
 
--- Types d'ordinateurs (Desktop, Laptop, Serveur...)
+-- types_ordinateur : correspond au type d'ordis (serveur, PC, ...)
 CREATE TABLE types_ordinateur (
   id           NUMBER PRIMARY KEY,
   machine_type VARCHAR2(255) NOT NULL
 ) TABLESPACE TS_USERS;
 
--- Modeles d'ordinateurs
+-- modeles_ordinateur : correspond aux modeles d'ordinateurs
 CREATE TABLE modeles_ordinateur (
   id           NUMBER PRIMARY KEY,
   nom          VARCHAR2(255) NOT NULL,
@@ -317,20 +287,15 @@ CREATE TABLE modeles_ordinateur (
   fabricant_id NUMBER REFERENCES fabricants(id)
 ) TABLESPACE TS_USERS;
 
--- Profils applicatifs (lookup)
--- Admin / Technicien / Enseignant / Etudiant / Administration
+-- profils : correspond au type de prodifs des utilisateurs
+--  Ex: Admin / Technicien / Enseignant / Etudiant / Administration
 CREATE TABLE profils (
   id        NUMBER PRIMARY KEY,
   nom       VARCHAR2(100) NOT NULL UNIQUE,
-  interface VARCHAR2(50)   -- 'central' (admin) ou 'helpdesk' (utilisateur)
+  interface VARCHAR2(50)
 ) TABLESPACE TS_USERS;
 
-
--- =============================================================================
--- 5. TABLES UTILISATEURS (TS_USERS)
--- =============================================================================
-
--- Utilisateurs
+-- Utilisateurs : correspond à l'utilisateur
 CREATE TABLE utilisateurs (
   id                 NUMBER PRIMARY KEY,
   login              VARCHAR2(255) NOT NULL UNIQUE,
@@ -354,7 +319,8 @@ CREATE TABLE utilisateurs (
   date_modification  DATE DEFAULT SYSDATE
 ) TABLESPACE TS_USERS;
 
--- Groupes (regroupement logique de materiel ; ex : "PCs salle TP Cauchy")
+-- Groupes : regroupe le materiel
+--  Ex : "PCs salle TP Cauchy"
 CREATE TABLE groupes (
   id                 NUMBER PRIMARY KEY,
   nom                VARCHAR2(255) NOT NULL,
@@ -367,13 +333,7 @@ CREATE TABLE groupes (
 ) TABLESPACE TS_USERS;
 
 
--- =============================================================================
--- 6. TABLES MATERIEL (TS_MATERIEL_CERGY pour l'instance Cergy)
--- =============================================================================
--- Cote XE_PAU, les memes tables sont creees dans TS_MATERIEL_PAU.
--- Voir le bloc "DEPLOIEMENT COTE PAU" en fin de fichier.
-
--- Ordinateurs
+-- Ordinateurs : contient les infos uniques des PCs + infos de fabricant + infos liés à CY Tech
 CREATE TABLE ordinateurs (
   id                  NUMBER PRIMARY KEY,
   nom                 VARCHAR2(255) NOT NULL,
@@ -397,13 +357,12 @@ CREATE TABLE ordinateurs (
   date_modification   DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
--- Peripheriques (imprimantes, souris, claviers, videoprojecteurs...)
+-- Peripheriques : peut être imprimantes, souris, claviers, videoprojecteurs, ...
 CREATE TABLE peripheriques (
   id                 NUMBER PRIMARY KEY,
   nom                VARCHAR2(255) NOT NULL,
   numero_serie       VARCHAR2(255),
-  type_peripherique  VARCHAR2(100) NOT NULL
-    CHECK (type_peripherique IN ('imprimante','souris','clavier','videoprojecteur','ecran','autre')),
+  type_peripherique  VARCHAR2(100) NOT NULL CHECK (type_peripherique IN ('imprimante','souris','clavier','videoprojecteur','ecran','autre')),
   hierarchy_level_id NUMBER NOT NULL REFERENCES hierarchy_level(id),
   localisation_id    NUMBER REFERENCES localisations(id),
   fabricant_id       NUMBER REFERENCES fabricants(id),
@@ -416,7 +375,7 @@ CREATE TABLE peripheriques (
   date_modification  DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
--- Telephones (secretariat, accueil...)
+-- Telephones : pour le secretariat, accueil, ...
 CREATE TABLE telephones (
   id                 NUMBER PRIMARY KEY,
   nom                VARCHAR2(255) NOT NULL,
@@ -437,7 +396,7 @@ CREATE TABLE telephones (
   date_modification  DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
--- Logiciels
+-- Logiciels : correspond aux logieciels installés (les PCs à supprimer doivent d'abord désinstaller leurs logiciels)
 CREATE TABLE logiciels (
   id                 NUMBER PRIMARY KEY,
   nom                VARCHAR2(255) NOT NULL,
@@ -449,7 +408,7 @@ CREATE TABLE logiciels (
   date_modification  DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
--- Versions de logiciels
+-- versions_logiciel : correspond à la versions de logiciels
 CREATE TABLE versions_logiciel (
   id            NUMBER PRIMARY KEY,
   nom           VARCHAR2(255) NOT NULL,
@@ -458,7 +417,7 @@ CREATE TABLE versions_logiciel (
   date_creation DATE DEFAULT SYSDATE
 ) TABLESPACE TS_MATERIEL_CERGY;
 
--- Installations de logiciels (quel ordi a quel logiciel)
+-- installations_logiciels : associe quel ordi a quel logiciel
 CREATE TABLE installations_logiciels (
   id                  NUMBER PRIMARY KEY,
   ordinateur_id       NUMBER NOT NULL REFERENCES ordinateurs(id),
@@ -468,11 +427,7 @@ CREATE TABLE installations_logiciels (
 ) TABLESPACE TS_MATERIEL_CERGY;
 
 
--- =============================================================================
--- 7. TABLES RESEAU (TS_NETWORK_CERGY)
--- =============================================================================
-
--- Types d'equipement reseau (switch, routeur, AP WiFi...)
+-- Types d'equipement reseau (switch, routeur, AP WiFi, ...)
 CREATE TABLE types_equip_reseau (
   id  NUMBER PRIMARY KEY,
   nom VARCHAR2(255) NOT NULL UNIQUE
@@ -502,8 +457,7 @@ CREATE TABLE ports_reseau (
   nom               VARCHAR2(255),
   equipement_id     NUMBER NOT NULL REFERENCES equipements_reseau(id),
   adresse_mac       VARCHAR2(50),
-  type_port         VARCHAR2(20) DEFAULT 'ethernet'
-    CHECK (type_port IN ('ethernet','wifi')),
+  type_port         VARCHAR2(20) DEFAULT 'ethernet' CHECK (type_port IN ('ethernet','wifi')),
   vitesse           NUMBER,
   est_actif         NUMBER(1) DEFAULT 1 CHECK (est_actif IN (0,1)),
   date_creation     DATE DEFAULT SYSDATE,
@@ -511,26 +465,27 @@ CREATE TABLE ports_reseau (
 ) TABLESPACE TS_NETWORK_CERGY;
 
 
--- =============================================================================
--- 7 bis. CLUSTER (co-localisation par localisation_id)
--- =============================================================================
--- Un cluster regroupe physiquement sur disque les lignes de plusieurs tables
--- qui partagent une cle. Ici, ordinateurs et peripheriques partageant la meme
--- localisation_id sont stockes ensemble dans les memes blocs.
---   Avantage : un SELECT "tous les ordis + periph d'une salle" lit moins
---              de blocs (regroupement physique).
---   Inconvenient : INSERT/UPDATE plus couteux, table cluster monolithique
---              (pas de TRUNCATE individuel).
---
--- Approche pedagogique : on cree des tables jumelles _cl en parallele des
--- originales (pas de migration destructive). tests_perf.sql synchronise les
--- _cl apres le jeu de test puis compare les performances cluster vs heap.
+
+/*
+  Clusters
+  Ici on regroupe sur le disque les lignes de plusieurs tables qui partagent la meme clé.
+  On l'utilise pour localisation_id dans les tables ordinateurs et peripheriques.
+
+  Avantage : un SELECT "tous les ordis + periph d'une salle" lit moins de blocs (regroupement physique).
+  Inconvenient : INSERT/UPDATE plus couteux, table cluster monolithique (pas de TRUNCATE individuel).
+*/
 
 CREATE CLUSTER cl_materiel_localisation (localisation_id NUMBER)
   SIZE 512 TABLESPACE TS_MATERIEL_CERGY;
 
 CREATE INDEX idx_cluster_materiel_loc ON CLUSTER cl_materiel_localisation
   TABLESPACE TS_INDEX;
+
+
+
+/*
+  Tables liées aux cluster
+*/
 
 CREATE TABLE ordinateurs_cl (
   id                  NUMBER PRIMARY KEY,
@@ -573,10 +528,10 @@ CREATE TABLE peripheriques_cl (
 ) CLUSTER cl_materiel_localisation (localisation_id);
 
 
--- =============================================================================
--- 8. TABLE HISTORIQUE (audit)
--- =============================================================================
 
+/*
+  Historique : cette table contient l'historique de smodifications faites en BDD.
+*/
 CREATE TABLE historique (
   id              NUMBER PRIMARY KEY,
   type_objet      VARCHAR2(100) NOT NULL,
@@ -590,11 +545,9 @@ CREATE TABLE historique (
 ) TABLESPACE TS_USERS;
 
 
--- =============================================================================
--- 9. INDEX
--- =============================================================================
-
--- ── Index B-TREE sur FK et champs de recherche ──
+/*
+  Index B-TREE
+*/
 
 -- Ordinateurs
 CREATE INDEX idx_ordi_hierarchy_level ON ordinateurs(hierarchy_level_id) TABLESPACE TS_INDEX;
@@ -647,10 +600,10 @@ CREATE INDEX idx_ordi_nom_upper   ON ordinateurs(UPPER(nom))    TABLESPACE TS_IN
 CREATE INDEX idx_user_login_upper ON utilisateurs(UPPER(login)) TABLESPACE TS_INDEX;
 
 
--- =============================================================================
--- 10. VUES
--- =============================================================================
 
+/*
+  Creations des Vues.
+*/
 -- Parc Cergy
 CREATE OR REPLACE VIEW vue_parc_cergy AS
 SELECT o.id, o.nom, o.numero_serie, o.numero_inventaire,
@@ -705,7 +658,7 @@ FROM equipements_reseau er
   LEFT JOIN ports_reseau       pr  ON pr.equipement_id   = er.id
 WHERE er.est_supprime = 0;
 
--- Utilisateurs avec profil et hierarchy_level (jointure simple, plus de M:N)
+-- Utilisateurs avec profil et hierarchy_level (jointure simple)
 CREATE OR REPLACE VIEW vue_utilisateurs_droits AS
 SELECT u.id, u.login, u.nom, u.prenom, u.email,
        s.nom   AS site,
@@ -719,7 +672,7 @@ FROM utilisateurs u
   LEFT JOIN profils         p ON u.profil_id          = p.id
 WHERE u.est_supprime = 0;
 
--- Vue materialisee : stats du parc par site (ON DEMAND => REFRESH manuel)
+-- Vue materialisee : stats du parc par site
 CREATE MATERIALIZED VIEW mv_stats_parc
   REFRESH ON DEMAND
 AS
@@ -731,19 +684,15 @@ WHERE o.est_supprime = 0
 GROUP BY s.nom, e.nom;
 
 
--- =============================================================================
--- 11. BDDR (Base de donnees repartie)
--- =============================================================================
+
+/*
+  BDDR : Base de données réparties
+*/
 
 -- Database Link Cergy -> Pau
 CREATE DATABASE LINK db_pau
   CONNECT TO TECH_PAU IDENTIFIED BY pau2026
   USING '//localhost:1521/XE_PAU';
-
--- Side note : sur l'instance XE_PAU, creer un lien symetrique vers Cergy :
---   CREATE DATABASE LINK db_cergy
---     CONNECT TO TECH_CERGY IDENTIFIED BY cergy2026
---     USING '//localhost:1521/XE_CERGY';
 
 -- Synonymes publics pour transparence d'acces
 CREATE OR REPLACE PUBLIC SYNONYM ordinateurs_pau        FOR ordinateurs@db_pau;
@@ -751,17 +700,16 @@ CREATE OR REPLACE PUBLIC SYNONYM peripheriques_pau      FOR peripheriques@db_pau
 CREATE OR REPLACE PUBLIC SYNONYM telephones_pau         FOR telephones@db_pau;
 CREATE OR REPLACE PUBLIC SYNONYM equipements_reseau_pau FOR equipements_reseau@db_pau;
 
--- Vue de defragmentation simple : parc global (Cergy + Pau)
--- FORCE : la vue est creee meme si db_pau est pas encore joignable
--- (sera INVALID jusqu'a ALTER VIEW ... COMPILE apres deploiement de Pau).
+-- Vue du parc global (Cergy + Pau)
+-- FORCE : signifie que la vue est creee meme si db_pau n'est pas joignable.
 CREATE OR REPLACE FORCE VIEW vue_parc_global AS
 SELECT id, nom, numero_serie, site_id, hierarchy_level_id, date_creation
-  FROM ordinateurs
+	FROM ordinateurs
 UNION ALL
 SELECT id, nom, numero_serie, site_id, hierarchy_level_id, date_creation
-  FROM ordinateurs@db_pau;
+	FROM ordinateurs@db_pau;
 
--- Vue de defragmentation enrichie : parc global avec libelles humains
+-- Vue du parc global avec libelles humains
 CREATE OR REPLACE FORCE VIEW vue_parc_global_v2 AS
 SELECT 'CERGY' AS source,
        o.id, o.nom, o.numero_serie, o.numero_inventaire,
@@ -770,12 +718,12 @@ SELECT 'CERGY' AS source,
        l.nom AS localisation, l.batiment, l.salle,
        u.login AS utilisateur,
        o.date_achat, o.date_creation
-  FROM ordinateurs o
-  LEFT JOIN fabricants    f ON f.id = o.fabricant_id
-  LEFT JOIN etats         e ON e.id = o.etat_id
-  LEFT JOIN localisations l ON l.id = o.localisation_id
-  LEFT JOIN utilisateurs  u ON u.id = o.utilisateur_id
- WHERE o.est_supprime = 0
+	FROM ordinateurs o
+	LEFT JOIN fabricants    f ON f.id = o.fabricant_id
+	LEFT JOIN etats         e ON e.id = o.etat_id
+	LEFT JOIN localisations l ON l.id = o.localisation_id
+	LEFT JOIN utilisateurs  u ON u.id = o.utilisateur_id
+	WHERE o.est_supprime = 0
 UNION ALL
 SELECT 'PAU' AS source,
        o.id, o.nom, o.numero_serie, o.numero_inventaire,
@@ -783,19 +731,19 @@ SELECT 'PAU' AS source,
        f.nom, e.nom, l.nom, l.batiment, l.salle,
        u.login,
        o.date_achat, o.date_creation
-  FROM ordinateurs@db_pau o
-  LEFT JOIN fabricants@db_pau    f ON f.id = o.fabricant_id
-  LEFT JOIN etats@db_pau         e ON e.id = o.etat_id
-  LEFT JOIN localisations@db_pau l ON l.id = o.localisation_id
-  LEFT JOIN utilisateurs@db_pau  u ON u.id = o.utilisateur_id
- WHERE o.est_supprime = 0;
+	FROM ordinateurs@db_pau o
+	LEFT JOIN fabricants@db_pau    f ON f.id = o.fabricant_id
+	LEFT JOIN etats@db_pau         e ON e.id = o.etat_id
+	LEFT JOIN localisations@db_pau l ON l.id = o.localisation_id
+	LEFT JOIN utilisateurs@db_pau  u ON u.id = o.utilisateur_id
+	WHERE o.est_supprime = 0;
 
 
--- =============================================================================
--- 12. PRIVILEGES OBJETS
--- =============================================================================
+/*
+	Privilèges liés aux roles.
+*/
 
--- Technicien Cergy : droits complets sur le materiel et le reseau Cergy
+-- TECH_CERGY : droits complets sur le materiel et le reseau Cergy
 GRANT SELECT, INSERT, UPDATE, DELETE ON ordinateurs              TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON peripheriques            TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON telephones               TO TECH_CERGY;
@@ -804,14 +752,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON versions_logiciel        TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON installations_logiciels  TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON equipements_reseau       TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ports_reseau             TO TECH_CERGY;
--- Tables clusterisees (bonus pedagogique : co-localisation par salle)
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON ordinateurs_cl           TO TECH_CERGY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON peripheriques_cl         TO TECH_CERGY;
 GRANT SELECT ON utilisateurs TO TECH_CERGY;
 GRANT SELECT ON profils      TO TECH_CERGY;
 
--- Technicien Pau : lecture sur toutes les tables consommees via le db_link
--- (les vues vue_parc_global* font jointures sur ces tables).
+-- TECH_PAU : lecture sur toutes les tables consommees via le db_link (les vues vue_parc_global* font jointures sur ces tables).
 GRANT SELECT ON sites            TO TECH_PAU;
 GRANT SELECT ON hierarchy_level  TO TECH_PAU;
 GRANT SELECT ON localisations    TO TECH_PAU;
@@ -826,8 +773,6 @@ GRANT SELECT ON etats            TO TECH_PAU;
 GRANT SELECT ON profils          TO TECH_PAU;
 
 -- Synonymes publics pour permettre l'acces sans qualifier admin_cytech.
--- Necessaire car le db_link s'authentifie comme TECH_PAU qui n'a pas
--- admin_cytech dans son search path par defaut.
 CREATE OR REPLACE PUBLIC SYNONYM sites              FOR admin_cytech.sites;
 CREATE OR REPLACE PUBLIC SYNONYM hierarchy_level    FOR admin_cytech.hierarchy_level;
 CREATE OR REPLACE PUBLIC SYNONYM localisations      FOR admin_cytech.localisations;
@@ -841,7 +786,7 @@ CREATE OR REPLACE PUBLIC SYNONYM fabricants         FOR admin_cytech.fabricants;
 CREATE OR REPLACE PUBLIC SYNONYM etats              FOR admin_cytech.etats;
 CREATE OR REPLACE PUBLIC SYNONYM profils            FOR admin_cytech.profils;
 
--- USER_RO : acces uniquement aux vues + MV
+-- USER_RO : acces uniquement aux vues
 GRANT SELECT ON vue_parc_cergy           TO USER_RO;
 GRANT SELECT ON vue_parc_pau             TO USER_RO;
 GRANT SELECT ON vue_peripheriques_site   TO USER_RO;
@@ -855,50 +800,3 @@ GRANT SELECT ON mv_stats_parc            TO USER_RO;
 GRANT SELECT ON seq_ordinateurs   TO TECH_CERGY;
 GRANT SELECT ON seq_peripheriques TO TECH_CERGY;
 GRANT SELECT ON seq_telephones    TO TECH_CERGY;
-
-
--- =============================================================================
--- 13. DEPLOIEMENT COTE PAU (documentation)
--- =============================================================================
--- Sur l'instance XE_PAU, executer un script analogue qui :
---   1) Cree les memes tablespaces locaux (TS_MATERIEL_PAU et TS_NETWORK_PAU
---      sont les seuls qui hebergent du data ; les autres servent juste aux
---      referentiels et a l'index).
---   2) Cree les tables ordinateurs / peripheriques / telephones dans
---      TS_MATERIEL_PAU et equipements_reseau / ports_reseau dans
---      TS_NETWORK_PAU. La definition (colonnes, FK, CHECK) est identique
---      a celle de Cergy.
---   3) Cree le DB link symetrique db_cergy.
---   4) Repplique les referentiels via des vues materialisees ON DEMAND :
---        CREATE MATERIALIZED VIEW mv_fabricants  REFRESH ON DEMAND
---          AS SELECT * FROM fabricants@db_cergy;
---        CREATE MATERIALIZED VIEW mv_etats       REFRESH ON DEMAND
---          AS SELECT * FROM etats@db_cergy;
---        CREATE MATERIALIZED VIEW mv_sites       REFRESH ON DEMAND
---          AS SELECT * FROM sites@db_cergy;
---        CREATE MATERIALIZED VIEW mv_profils     REFRESH ON DEMAND
---          AS SELECT * FROM profils@db_cergy;
---        CREATE MATERIALIZED VIEW mv_utilisateurs REFRESH ON DEMAND
---          AS SELECT id, login, nom, prenom, email, site_id, profil_id, est_actif
---               FROM utilisateurs@db_cergy
---              WHERE est_supprime = 0;
---   5) Pour rafraichir : EXEC DBMS_MVIEW.REFRESH('mv_<name>', 'C');
-
-
--- =============================================================================
--- 14. NOTES FK ON DELETE (a documenter dans le rapport)
--- =============================================================================
--- Les FK ci-dessus n'imposent pas de comportement ON DELETE explicite
--- (par defaut Oracle : NO ACTION = refus si la cle est referencee).
--- Choix metier recommandes pour la prochaine migration :
---   * Suppression d'un utilisateur  -> SET NULL sur ses materiels
---                                       (on ne perd pas le materiel).
---   * Suppression d'une localisation -> SET NULL sur le materiel
---                                       (orphelin reaffectable).
---   * Suppression d'un fabricant     -> RESTRICT (defaut, refus).
--- Pour appliquer effectivement (apres avoir release les anciennes FK) :
---   ALTER TABLE ordinateurs DROP CONSTRAINT <fk_name>;
---   ALTER TABLE ordinateurs ADD CONSTRAINT fk_ordi_user
---     FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE SET NULL;
--- Les noms de FK n'ont pas ete poses explicitement, ils sont auto-generes :
---   SELECT constraint_name FROM user_constraints WHERE table_name = 'ORDINATEURS';
