@@ -26,6 +26,7 @@
 
 ALTER SESSION SET "_ORACLE_SCRIPT"=true;
 SET SERVEROUTPUT ON SIZE UNLIMITED;
+SET DEFINE ON
 
 -- =============================================================================
 -- 0. RESOLUTION DU PDB COURANT + REPERTOIRE DES DATAFILES

@@ -1,4 +1,4 @@
--- =============================================================================
+﻿-- =============================================================================
 -- PL/SQL PACKAGES, FONCTIONS, PROCEDURES, CURSEURS -- Projet GLPI CY Tech
 -- =============================================================================
 -- Fichier consolide regroupant toute la logique metier (hors triggers).
@@ -1043,11 +1043,7 @@ GRANT EXECUTE ON pkg_parc_info   TO TECH_CERGY;
 GRANT EXECUTE ON pkg_parc_info   TO TECH_PAU;
 GRANT EXECUTE ON pkg_stats       TO TECH_CERGY;
 GRANT EXECUTE ON pkg_stats       TO TECH_PAU;
-<<<<<<< HEAD
--- USER_RO en lecture seule : peut consulter les stats
-=======
 -- pkg_stats : USER_RO peut consulter les stats (lecture seule)
->>>>>>> Anthony
 GRANT EXECUTE ON pkg_stats       TO USER_RO;
 GRANT EXECUTE ON pkg_reseau      TO TECH_CERGY;
 GRANT EXECUTE ON pkg_reseau      TO TECH_PAU;
